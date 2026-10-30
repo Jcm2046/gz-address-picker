@@ -1,0 +1,155 @@
+[
+  {
+    "code": "macro-metro-manila",
+    "name": "Metro Manila",
+    "level": "macroRegion",
+    "hasChildren": true,
+    "geoOrder": 1,
+    "regions": [
+      {
+        "code": "1300000000",
+        "name": "NCR",
+        "designation": "NCR",
+        "officialName": "National Capital Region (NCR)"
+      }
+    ]
+  },
+  {
+    "code": "macro-mindanao",
+    "name": "Mindanao",
+    "level": "macroRegion",
+    "hasChildren": true,
+    "geoOrder": 5,
+    "regions": [
+      {
+        "code": "0900000000",
+        "name": "Zamboanga Peninsula",
+        "designation": "IX",
+        "officialName": "Region IX (Zamboanga Peninsula)"
+      },
+      {
+        "code": "1000000000",
+        "name": "Northern Mindanao",
+        "designation": "X",
+        "officialName": "Region X (Northern Mindanao)"
+      },
+      {
+        "code": "1100000000",
+        "name": "Davao Region",
+        "designation": "XI",
+        "officialName": "Region XI (Davao Region)"
+      },
+      {
+        "code": "1200000000",
+        "name": "SOCCSKSARGEN",
+        "designation": "XII",
+        "officialName": "Region XII (SOCCSKSARGEN)"
+      },
+      {
+        "code": "1600000000",
+        "name": "Caraga",
+        "designation": "XIII",
+        "officialName": "Region XIII (Caraga)"
+      },
+      {
+        "code": "1900000000",
+        "name": "BARMM",
+        "designation": "BARMM",
+        "officialName": "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)"
+      }
+    ]
+  },
+  {
+    "code": "macro-north-luzon",
+    "name": "North Luzon",
+    "level": "macroRegion",
+    "hasChildren": true,
+    "geoOrder": 2,
+    "regions": [
+      {
+        "code": "1400000000",
+        "name": "CAR",
+        "designation": "CAR",
+        "officialName": "Cordillera Administrative Region (CAR)"
+      },
+      {
+        "code": "0100000000",
+        "name": "Ilocos Region",
+        "designation": "I",
+        "officialName": "Region I (Ilocos Region)"
+      },
+      {
+        "code": "0200000000",
+        "name": "Cagayan Valley",
+        "designation": "II",
+        "officialName": "Region II (Cagayan Valley)"
+      },
+      {
+        "code": "0300000000",
+        "name": "Central Luzon",
+        "designation": "III",
+        "officialName": "Region III (Central Luzon)"
+      }
+    ]
+  },
+  {
+    "code": "macro-south-luzon",
+    "name": "South Luzon",
+    "level": "macroRegion",
+    "hasChildren": true,
+    "geoOrder": 3,
+    "regions": [
+      {
+        "code": "0400000000",
+        "name": "CALABARZON",
+        "designation": "IV-A",
+        "officialName": "Region IV-A (CALABARZON)"
+      },
+      {
+        "code": "1700000000",
+        "name": "MIMAROPA",
+        "designation": "MIMAROPA",
+        "officialName": "MIMAROPA Region"
+      },
+      {
+        "code": "0500000000",
+        "name": "Bicol Region",
+        "designation": "V",
+        "officialName": "Region V (Bicol Region)"
+      }
+    ]
+  },
+  {
+    "code": "macro-visayas",
+    "name": "Visayas",
+    "level": "macroRegion",
+    "hasChildren": true,
+    "geoOrder": 4,
+    "regions": [
+      {
+        "code": "0600000000",
+        "name": "Western Visayas",
+        "designation": "VI",
+        "officialName": "Region VI (Western Visayas)"
+      },
+      {
+        "code": "1800000000",
+        "name": "Negros Island Region",
+        "designation": "NIR",
+        "officialName": "Negros Island Region (NIR)"
+      },
+      {
+        "code": "0700000000",
+        "name": "Central Visayas",
+        "designation": "VII",
+        "officialName": "Region VII (Central Visayas)"
+      },
+      {
+        "code": "0800000000",
+        "name": "Eastern Visayas",
+        "designation": "VIII",
+        "officialName": "Region VIII (Eastern Visayas)"
+      }
+    ]
+  }
+]

@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex,nofollow">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PSGC 四级地址选择器 Demo</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #fff; --text: #1f2329; --sub: #8f959e; --line: #eef0f2;
+    --accent: #1664ff; --accent-bg: #eef3ff; --danger: #d83931;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Noto Sans", sans-serif;
+    -webkit-text-size-adjust: 100%; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  .app { max-width: 390px; margin: 0 auto; min-height: 100vh; padding: 16px 16px 32px; }
+  .top .title { font-size: 18px; font-weight: 600; }
+  .top .sub { color: var(--sub); font-size: 12px; margin-top: 2px; }
+  .mode { display: flex; background: #e8eaee; border-radius: 10px; padding: 3px; margin: 14px 0 16px; }
+  .mode button { flex: 1; text-align: center; padding: 7px 0; border-radius: 8px; font-size: 14px; color: #4e5969; }
+  .mode button.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .field label { display: block; font-size: 13px; color: #4e5969; margin: 0 0 6px 2px; }
+  .selectbox { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 12px 14px;
+    background: var(--card); border: 1px solid #dfe2e6; border-radius: 10px; }
+  .selectbox .txt { flex: 1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+  .selectbox.placeholder .txt { color: var(--sub); }
+  .chev { width: 8px; height: 8px; border-right: 2px solid #a0a6ad; border-bottom: 2px solid #a0a6ad; transform: rotate(45deg); margin: -4px 2px 0; flex: none; }
+  .dev { margin-top: 16px; background: var(--card); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #4e5969; }
+  .dev h3 { margin: 0 0 6px; font-size: 12px; color: var(--sub); font-weight: 500; }
+  .dev table { width: 100%; border-collapse: collapse; }
+  .dev td { padding: 3px 0; vertical-align: top; border-top: 1px solid var(--line); }
+  .dev td:first-child { width: 92px; color: var(--sub); }
+  .dev code { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); }
+  .dev .mail { margin-top: 8px; color: var(--text); }
+  .hint { color: var(--sub); font-size: 12px; margin: 14px 2px 0; }
+
+  .sheet { position: fixed; inset: 0; z-index: 10; }
+  .sheet[hidden] { display: none; }
+  .mask { position: absolute; inset: 0; background: rgba(0,0,0,.45); animation: fade .2s ease-out; }
+  .panel { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 100%; max-width: 390px; height: 84vh;
+    background: var(--card); border-radius: 16px 16px 0 0; display: flex; flex-direction: column; animation: up .2s ease-out; }
+  @keyframes up { from { transform: translate(-50%, 40px); } to { transform: translate(-50%, 0); } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .head { display: flex; align-items: center; justify-content: center; position: relative; height: 52px; font-weight: 600; font-size: 16px; flex: none; }
+  .head .x { position: absolute; right: 8px; top: 6px; width: 40px; height: 40px; text-align: center; font-size: 26px; line-height: 40px; color: #646a73; }
+  .search { padding: 0 16px 8px; flex: none; }
+  .search input { width: 100%; height: 38px; border: 0; border-radius: 19px; padding: 0 14px 0 36px; font: inherit; font-size: 14px; outline: none;
+    background: #f2f3f5 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238f959e' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-4-4'/%3E%3C/svg%3E") no-repeat 13px center; }
+  .search input:focus { box-shadow: 0 0 0 2px var(--accent-bg) inset; }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); padding: 0 8px; flex: none; }
+  .tabs[hidden] { display: none; }
+  .tabs button { flex: 1 1 0; min-width: 0; padding: 10px 6px; text-align: center; font-size: 14px; color: #4e5969; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+  .tabs button.filled { color: var(--text); }
+  .tabs button.active { color: var(--accent); font-weight: 600; }
+  .tabs button.active::after { content: ""; position: absolute; left: 25%; right: 25%; bottom: 0; height: 2px; border-radius: 2px; background: var(--accent); }
+  .tabs button:disabled { color: #c9cdd4; cursor: default; }
+  .body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .list { list-style: none; margin: 0; padding: 0 0 24px; }
+  .list[hidden] { display: none; }
+  .row { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+  .row .main { flex: 1; min-width: 0; }
+  .row .nm { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .nm b { color: var(--accent); font-weight: 600; }
+  .row .sub { display: block; font-size: 12px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+  .row .tag { flex: none; font-size: 11px; color: #646a73; background: #f2f3f5; border-radius: 4px; padding: 1px 6px; }
+  .row .ck { flex: none; width: 18px; color: var(--accent); font-weight: 700; visibility: hidden; text-align: right; }
+  .row.sel { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+  .row.sel .ck { visibility: visible; }
+  .state { padding: 28px 16px; text-align: center; color: var(--sub); }
+  .state.loading::before { content: ""; display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px;
+    border: 2px solid #c9cdd4; border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .state.error { color: var(--danger); }
+  .state.error button { color: var(--accent); margin-left: 6px; text-decoration: underline; }
+  .more { padding: 10px 16px 0; font-size: 12px; color: var(--sub); text-align: center; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="title">PSGC 四级地址选择器 · Demo</div>
+    <div class="sub" id="ver">Loading...</div>
+  </header>
+
+  <div class="mode" role="tablist" aria-label="第一级方案">
+    <button type="button" data-mode="official" class="on" role="tab" aria-selected="true">官方 18 大区</button>
+    <button type="button" data-mode="bp" role="tab" aria-selected="false">BP 5 大区</button>
+  </div>
+
+  <div class="field">
+    <label for="loc">Region / Province / City / Barangay</label>
+    <button type="button" id="loc" class="selectbox placeholder" aria-haspopup="dialog">
+      <span class="txt" id="locText">Select Region / Province / City / Barangay</span><i class="chev"></i>
+    </button>
+  </div>
+
+  <section class="dev" id="dev" aria-live="polite"></section>
+  <p class="hint">说明：逐级读取 <code>../dist/v1/children/{上级编码}.json</code>；搜索读取 <code>search-index.json</code>（首次搜索时加载）。中途关闭不改原值；改上级会清空下级。</p>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="mask" data-close></div>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="head"><span id="sheetTitle">Select Location</span><button type="button" class="x" data-close aria-label="Close">×</button></div>
+    <div class="search"><input id="q" type="search" placeholder="Search Province, City or Barangay" autocomplete="off" enterkeyhint="search"></div>
+    <nav class="tabs" id="tabs" aria-label="Levels">
+      <button type="button" data-i="0">Region</button>
+      <button type="button" data-i="1">Province</button>
+      <button type="button" data-i="2">City</button>
+      <button type="button" data-i="3">Barangay</button>
+    </nav>
+    <div class="body" id="body">
+      <ul class="list" id="list"></ul>
+      <ul class="list" id="results" hidden></ul>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const BASE = '../dist/v1/';
+  const LEVELS = ['Region', 'Province', 'City', 'Barangay'];
+  const RESULT_LEVELS = ['Province', 'City', 'Barangay'];
+  const LIMIT = 50;
+  const $ = (s) => document.querySelector(s);
+  const el = {
+    ver: $('#ver'), loc: $('#loc'), locText: $('#locText'), dev: $('#dev'), sheet: $('#sheet'), q: $('#q'),
+    tabs: $('#tabs'), list: $('#list'), results: $('#results'), body: $('#body'),
+  };
+  const tabBtns = [...el.tabs.querySelectorAll('button')];
+
+  // ñ / 重音不敏感 + 不区分大小写
+  const fold = (s) => (/[^\x00-\x7f]/.test(s) ? s.normalize('NFD').replace(/[̀-ͯ]/g, '') : s).toLowerCase();
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // 相邻同名只保留一个
+  const dedupe = (parts) => parts.filter(Boolean).reduce((a, p) => {
+    if (!a.length || fold(a[a.length - 1]) !== fold(p)) a.push(p);
+    return a;
+  }, []);
+
+  // ---------- 数据加载（按需、带缓存）----------
+  const cache = new Map();
+  const inflight = new Map();
+  function load(path) {
+    if (cache.has(path)) return Promise.resolve(cache.get(path));
+    if (!inflight.has(path)) {
+      inflight.set(path, fetch(BASE + path)
+        .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + path); return r.json(); })
+        .then((j) => { cache.set(path, j); return j; })
+        .finally(() => inflight.delete(path)));
+    }
+    return inflight.get(path);
+  }
+
+  // ---------- 状态 ----------
+  const state = {
+    mode: 'official',  // official = 官方 18 大区；bp = BP 5 大区
+    value: null,       // 已确认的值 {region, macro, province, city, barangay}
+    draft: null,       // 抽屉里的草稿 [第一级, 省, 市, Barangay]
+    step: 0,           // 当前页签
+  };
+
+  const l1Source = () => (state.mode === 'official' ? 'regions.json' : 'macro-regions.json');
+  const sourceFor = (k) => (k === 0 ? l1Source() : 'children/' + state.draft[k - 1].code + '.json');
+  const l1Name = (v) => (state.mode === 'official' ? v.region.name : v.macro.name);
+  const backfill = (v) => dedupe([l1Name(v), v.province.name, v.city.name, v.barangay.name]).join(', ');
+  const mailing = (v) => dedupe([v.barangay.name, v.city.name, v.province.name, l1Name(v)]).join(', ');
+
+  // ---------- 选择框 + 将保存的值 ----------
+  function renderField() {
+    const v = state.value;
+    el.loc.classList.toggle('placeholder', !v);
+    el.locText.textContent = v ? backfill(v) : 'Select Region / Province / City / Barangay';
+    if (!v) {
+      el.dev.innerHTML = '<h3>将保存的值</h3><div>尚未选择</div>';
+      return;
+    }
+    const row = (k, code, name, extra) => `<tr><td>${k}</td><td><code>${esc(code)}</code> ${esc(name)}${extra ? ' <span style="color:#8f959e">(' + esc(extra) + ')</span>' : ''}</td></tr>`;
+    el.dev.innerHTML = '<h3>将保存的值（编码 + 名称快照）</h3><table>'
+      + row('regionCode', v.region.code, v.region.name)
+      + row('macroRegion', v.macro.code, v.macro.name)
+      + row('provinceCode', v.province.code, v.province.name, v.province.synthetic ? 'synthetic' : '')
+      + row('cityCode', v.city.code, v.city.name, [v.city.cityClass, v.city.partOfName ? 'part of ' + v.city.partOfName : ''].filter(Boolean).join(', '))
+      + row('barangayCode', v.barangay.code, v.barangay.name)
+      + '</table><div class="mail">邮寄拼接（从小到大）：' + esc(mailing(v)) + '</div>';
+  }
+
+  // ---------- 抽屉 ----------
+  function openSheet() {
+    const v = state.value;
+    if (v) {
+      const l1 = state.mode === 'official'
+        ? { code: v.region.code, name: v.region.name, macroRegionCode: v.macro.code, macroRegion: v.macro.name }
+        : { code: v.macro.code, name: v.macro.name };
+      state.draft = [l1, { ...v.province, regionCode: v.region.code, regionName: v.region.name, macroRegionCode: v.macro.code }, { ...v.city }, { ...v.barangay }];
+      state.step = 3;
+    } else {
+      state.draft = [null, null, null, null];
+      state.step = 0;
+    }
+    el.q.value = '';
+    showResults(false);
+    el.sheet.hidden = false;
+    document.body.style.overflow = 'hidden';
+    renderTabs();
+    renderList();
+  }
+
+  function closeSheet() {
+    clearTimeout(searchTimer);
+    el.sheet.hidden = true;
+    document.body.style.overflow = '';
+    state.draft = null;  // 没选到 Barangay 就关闭：草稿丢弃，选择框保持打开前的值
+  }
+
+  function renderTabs() {
+    const firstEmpty = state.draft.findIndex((x) => !x);
+    const maxEnabled = firstEmpty === -1 ? 3 : firstEmpty;
+    tabBtns.forEach((b, i) => {
+      const it = state.draft[i];
+      b.textContent = it ? it.name : LEVELS[i];
+      b.title = it ? LEVELS[i] + ': ' + it.name : LEVELS[i];
+      b.disabled = i > maxEnabled;
+      b.classList.toggle('active', i === state.step);
+      b.classList.toggle('filled', !!it);
+      b.setAttribute('aria-selected', i === state.step ? 'true' : 'false');
+    });
+  }
+
+  let listToken = 0;
+  function renderList() {
+    const token = ++listToken;
+    const k = state.step;
+    const src = sourceFor(k);
+    const draw = (items) => {
+      if (token !== listToken) return;
+      const sel = state.draft[k] && state.draft[k].code;
+      el.list.innerHTML = items.map((it) => {
+        let sub = '';
+        if (k === 0 && state.mode === 'official' && it.officialName && it.officialName !== it.name) sub = it.officialName;
+        if (k === 0 && state.mode === 'bp') sub = it.regions.map((r) => r.designation).join(' · ');
+        const tag = it.partOfName ? `<span class="tag">${esc(it.partOfName)}</span>` : '';
+        return `<li><button type="button" class="row${it.code === sel ? ' sel' : ''}" data-code="${esc(it.code)}">`
+          + `<span class="main"><span class="nm">${esc(it.name)}</span>${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</span>${tag}<span class="ck">✓</span></button></li>`;
+      }).join('');
+      el.list.dataset.level = String(k);
+      el.list.dataset.count = String(items.length);
+      el.list._items = items;
+      const s = el.list.querySelector('.row.sel');
+      if (s) s.scrollIntoView({ block: 'center' }); else el.body.scrollTop = 0;
+    };
+    if (cache.has(src)) return draw(cache.get(src));
+    el.list.dataset.level = String(k);
+    el.list.dataset.count = '';
+    el.list.innerHTML = '<li class="state loading">Loading...</li>';
+    load(src).then(draw).catch(() => {
+      if (token !== listToken) return;
+      el.list.innerHTML = '<li class="state error">Failed to load.<button type="button" data-retry>Retry</button></li>';
+    });
+  }
+
+  function choose(k, item) {
+    const prev = state.draft[k];
+    if (!prev || prev.code !== item.code) {
+      state.draft[k] = item;
+      for (let j = k + 1; j < 4; j++) state.draft[j] = null;  // 改上级清空下级
+    }
+    if (k === 3) { commit(); closeSheet(); renderField(); return; }
+    state.step = k + 1;
+    renderTabs();
+    renderList();
+  }
+
+  function commit() {
+    const [a, p, c, b] = state.draft;
+    const region = state.mode === 'official' ? { code: a.code, name: a.name } : { code: p.regionCode, name: p.regionName };
+    const macro = state.mode === 'official' ? { code: a.macroRegionCode, name: a.macroRegion } : { code: a.code, name: a.name };
+    state.value = {
+      region, macro,
+      province: { code: p.code, name: p.name, synthetic: !!p.synthetic },
+      city: { code: c.code, name: c.name, cityClass: c.cityClass, partOfName: c.partOfName || null },
+      barangay: { code: b.code, name: b.name },
+    };
+  }
+
+  // ---------- 搜索 ----------
+  let IDX = null;
+  let idxPromise = null;
+  function loadIndex() {
+    if (IDX) return Promise.resolve(IDX);
+    if (!idxPromise) {
+      idxPromise = load('search-index.json').then((si) => {
+        const M = si.m.map(([code, name]) => ({ code, name, f: fold(name) }));
+        const R = si.r.map(([code, name, m]) => ({ code, name, m, f: fold(name) }));
+        const P = si.p.map(([code, name, r]) => ({ code, name, r, f: fold(name) }));
+        const C = si.c.map(([code, name, p, cls, partOf]) => ({ code, name, p, cls, partOf: partOf || null, f: fold(name), fa: partOf ? fold(partOf) : '' }));
+        const B = si.b.map(([c, n, name]) => ({ c, n, name, f: fold(name) }));
+        IDX = { M, R, P, C, B, ps: si.ps };
+        return IDX;
+      }).catch((e) => { idxPromise = null; throw e; });
+    }
+    return idxPromise;
+  }
+
+  // 0 = 名称以关键词开头；1 = 某个词以关键词开头；2 = 名称中间包含；-1 = 不匹配
+  function rankIn(f, q) {
+    let i = f.indexOf(q);
+    if (i < 0) return -1;
+    if (i === 0) return 0;
+    for (; i >= 0; i = f.indexOf(q, i + 1)) if (!/[a-z0-9]/.test(f[i - 1])) return 1;
+    return 2;
+  }
+
+  const ancP = (e) => { const r = IDX.R[e.r]; return [r.f, IDX.M[r.m].f]; };
+  const ancC = (e) => { const p = IDX.P[e.p]; return [p.f].concat(ancP(p)); };
+  const ancB = (e) => { const c = IDX.C[e.c]; return [c.f, c.fa].concat(ancC(c)); };
+
+  // 排序：先「开头 / 词首命中」（按 Province → City → Barangay，同级里开头命中在前），
+  // 再「名称中间包含」，最后「多词靠上级名命中」；同一档内保持索引里的 A–Z 顺序
+  const bucketOf = (r, lvl) => (r <= 1 ? lvl * 2 + r : r === 2 ? 6 + lvl : 9 + lvl);
+
+  function search(raw) {
+    const q = fold(raw).replace(/\s+/g, ' ').trim();
+    const toks = q.split(/[\s,]+/).filter(Boolean);
+    const buckets = Array.from({ length: 12 }, () => []);
+    let total = 0;
+    const consider = (lvl, e, alias, anc) => {
+      let r = rankIn(e.f, q);
+      if (r < 0 && alias) { const ra = rankIn(alias, q); if (ra >= 0) r = Math.max(ra, 1); }
+      if (r < 0 && toks.length > 1) {  // 多个词：每个词命中自己或上级名称，且至少一个词命中自己
+        let own = false;
+        let all = true;
+        let ancestors = null;
+        for (const t of toks) {
+          if (e.f.includes(t) || (alias && alias.includes(t))) { own = true; continue; }
+          ancestors = ancestors || anc(e);
+          if (!ancestors.some((a) => a && a.includes(t))) { all = false; break; }
+        }
+        if (own && all) r = 3;
+      }
+      if (r < 0) return;
+      total++;
+      const b = buckets[bucketOf(r, lvl)];
+      if (b.length < LIMIT) b.push({ lvl, e });
+    };
+    for (let i = 0; i < IDX.ps; i++) consider(0, IDX.P[i], '', ancP);
+    for (const e of IDX.C) consider(1, e, e.fa, ancC);
+    for (const e of IDX.B) consider(2, e, '', ancB);
+    const items = [];
+    for (const b of buckets) for (const x of b) if (items.length < LIMIT) items.push(x);
+    return { items, total, q };
+  }
+
+  function resolve({ lvl, e }) {
+    let prov = null; let city = null; let code; let tag = null;
+    if (lvl === 0) { prov = e; code = e.code; }
+    if (lvl === 1) { city = e; prov = IDX.P[e.p]; code = e.code; tag = e.partOf; }
+    if (lvl === 2) { city = IDX.C[e.c]; prov = IDX.P[city.p]; code = city.code.slice(0, 7) + String(e.n).padStart(3, '0'); }
+    const reg = IDX.R[prov.r];
+    const mac = IDX.M[reg.m];
+    return { lvl, code, name: e.name, tag, prov, city, reg, mac };
+  }
+
+  function highlight(name, q) {
+    const f = fold(name);
+    const i = f.indexOf(q);
+    if (i < 0 || f.length !== name.length) return esc(name);
+    return esc(name.slice(0, i)) + '<b>' + esc(name.slice(i, i + q.length)) + '</b>' + esc(name.slice(i + q.length));
+  }
+
+  let searchTimer = null;
+  let searchToken = 0;
+  function showResults(on) {
+    el.results.hidden = !on;
+    el.list.hidden = on;
+    el.tabs.hidden = on;  // 搜索态不显示页签
+  }
+  function runSearch(raw) {
+    const token = ++searchToken;
+    showResults(true);
+    if (!IDX) el.results.innerHTML = '<li class="state loading">Loading...</li>';
+    loadIndex().then(() => {
+      if (token !== searchToken) return;
+      const { items, total, q } = search(raw);
+      el.results._items = items.map(resolve);
+      el.results.dataset.count = String(items.length);
+      el.results.dataset.total = String(total);
+      if (!items.length) { el.results.innerHTML = '<li class="state">No results</li>'; return; }
+      el.results.innerHTML = el.results._items.map((x, i) => {
+        const l1 = state.mode === 'official' ? x.reg.name : x.mac.name;
+        const anc = dedupe([l1, x.lvl > 0 ? x.prov.name : null, x.lvl > 1 ? x.city.name : null]);
+        if (anc.length > 1 && fold(anc[anc.length - 1]) === fold(x.name)) anc.pop();
+        const tag = x.tag ? `<span class="tag">${esc(x.tag)}</span>` : '';
+        return `<li><button type="button" class="row" data-i="${i}" data-code="${esc(x.code)}" data-lvl="${RESULT_LEVELS[x.lvl]}">`
+          + `<span class="main"><span class="nm">${highlight(x.name, q)}</span><span class="sub">${RESULT_LEVELS[x.lvl]} · ${esc(anc.join(', '))}</span></span>${tag}</button></li>`;
+      }).join('') + (total > items.length ? `<li class="more">Showing first ${items.length} of ${total} results. Type more to narrow down.</li>` : '');
+      el.body.scrollTop = 0;
+    }).catch(() => {
+      if (token !== searchToken) return;
+      el.results.innerHTML = '<li class="state error">Failed to load.<button type="button" data-retry-search>Retry</button></li>';
+    });
+  }
+
+  function pickResult(x) {
+    const l1 = state.mode === 'official'
+      ? { code: x.reg.code, name: x.reg.name, macroRegionCode: x.mac.code, macroRegion: x.mac.name }
+      : { code: x.mac.code, name: x.mac.name };
+    const prov = { code: x.prov.code, name: x.prov.name, regionCode: x.reg.code, regionName: x.reg.name, macroRegionCode: x.mac.code, synthetic: x.prov.code.startsWith('X') };
+    const city = x.city ? { code: x.city.code, name: x.city.name, cityClass: x.city.cls, partOfName: x.city.partOf } : null;
+    if (x.lvl === 2) {  // 点 Barangay：四级一次填好，关闭抽屉
+      state.draft = [l1, prov, city, { code: x.code, name: x.name }];
+      commit(); closeSheet(); renderField(); return;
+    }
+    // 点 City / Province：填好上级，跳到下一级页签继续选
+    state.draft = x.lvl === 1 ? [l1, prov, city, null] : [l1, prov, null, null];
+    state.step = x.lvl === 1 ? 3 : 2;
+    el.q.value = '';
+    showResults(false);
+    renderTabs();
+    renderList();
+  }
+
+  // ---------- 事件 ----------
+  el.loc.addEventListener('click', openSheet);
+  el.sheet.addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-close]')) return closeSheet();
+    if (ev.target.closest('[data-retry]')) return renderList();
+    if (ev.target.closest('[data-retry-search]')) return runSearch(el.q.value);
+    const row = ev.target.closest('.row');
+    if (!row) return;
+    if (row.closest('#results')) {
+      const x = el.results._items && el.results._items[Number(row.dataset.i)];
+      if (x) pickResult(x);
+      return;
+    }
+    const items = el.list._items || [];
+    const item = items.find((it) => it.code === row.dataset.code);
+    if (item) choose(state.step, item);
+  });
+  el.tabs.addEventListener('click', (ev) => {
+    const b = ev.target.closest('button');
+    if (!b || b.disabled) return;
+    state.step = Number(b.dataset.i);  // 点已选页签回退到该级
+    renderTabs();
+    renderList();
+  });
+  el.q.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    const v = el.q.value;
+    if (fold(v).replace(/\s+/g, ' ').trim().length < 2) {
+      searchToken++;
+      showResults(false);
+      return;
+    }
+    searchTimer = setTimeout(() => runSearch(v), 300);
+  });
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !el.sheet.hidden) closeSheet(); });
+  document.querySelectorAll('.mode button').forEach((b) => b.addEventListener('click', () => {
+    state.mode = b.dataset.mode;
+    document.querySelectorAll('.mode button').forEach((x) => {
+      x.classList.toggle('on', x === b);
+      x.setAttribute('aria-selected', x === b ? 'true' : 'false');
+    });
+    renderField();  // 已选的值不丢：第一级按当前方案显示官方大区或 BP 大区
+  }));
+
+  renderField();
+  load('meta.json').then((m) => {
+    el.ver.textContent = `${m.psgcVersion} · 发布 ${m.publicationDate} · Barangay ${m.counts.tree.barangay.toLocaleString('en-US')}`;
+    document.body.dataset.ready = '1';
+  }).catch(() => {
+    el.ver.textContent = '数据加载失败：请用本地静态服务打开（不能直接双击 file://）';
+    document.body.dataset.ready = 'error';
+  });
+})();
+</script>
+</body>
+</html>

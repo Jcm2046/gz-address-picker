@@ -1,0 +1,155 @@
+{
+  "generator": "scripts/build_psgc.py",
+  "schemaVersion": "v1",
+  "psgcVersion": "PSGC 3Q 2026",
+  "publicationDate": "2026-09-30",
+  "generatedAt": "2026-10-30T08:54:52Z",
+  "source": {
+    "publisher": "Philippine Statistics Authority (PSA)",
+    "title": "Philippine Standard Geographic Code (PSGC)",
+    "file": "PSGC-3Q-2026-Publication-Datafile.xlsx",
+    "sha256": "8aad47f84e4f6317dc4222b9fe35d36b5d71f2b74ad8f0c7622289c131dc9a59",
+    "sheet": "PSGC",
+    "dataRows": 43768,
+    "skippedRows": [
+      {
+        "row": 43770,
+        "reason": "空行"
+      },
+      {
+        "row": 43771,
+        "reason": "脚注说明行 a/",
+        "text": "As noted by the PSA Board, Lucena City is treated as an HUC for statistical purposes, pending compliance with the applicable requirements under RA 7160. This does not constitute a legal ruling on the city’s status as an HUC."
+      }
+    ],
+    "useConstraint": "Acknowledgement of the Philippine Statistics Authority (PSA) as the source"
+  },
+  "counts": {
+    "tree": {
+      "region": 18,
+      "province": 85,
+      "city": 1655,
+      "barangay": 42010,
+      "macroRegion": 5
+    },
+    "official": {
+      "Reg": 18,
+      "Prov": 82,
+      "City": 149,
+      "Mun": 1493,
+      "SubMun": 14,
+      "Bgy": 42010,
+      "emptyLevel": 2,
+      "cityClass": {
+        "CC": 111,
+        "HUC": 33,
+        "ICC": 5
+      }
+    },
+    "childrenFiles": 1763,
+    "searchIndex": {
+      "province": 84,
+      "city": 1655,
+      "barangay": 42010
+    }
+  },
+  "levels": [
+    {
+      "level": "region",
+      "label": "Region",
+      "root": "regions.json（官方 18 大区）或 macro-regions.json（BP 5 大区）"
+    },
+    {
+      "level": "province",
+      "label": "Province",
+      "from": "children/{regionCode}.json 或 children/{macroRegionCode}.json"
+    },
+    {
+      "level": "city",
+      "label": "City",
+      "from": "children/{provinceCode}.json"
+    },
+    {
+      "level": "barangay",
+      "label": "Barangay",
+      "from": "children/{cityCode}.json"
+    }
+  ],
+  "specials": [
+    {
+      "id": "ncr-metro-manila",
+      "title": "NCR 合成省级节点 Metro Manila",
+      "detail": "PSGC 里 NCR 没有省（16 个市编码 13801–13816 直接挂在大区下）。第二级合成一个「Metro Manila」(X1300000000, synthetic=true)，下面挂 NCR 全部市、Pateros 和马尼拉的 14 个 SubMun，共 30 个。"
+    },
+    {
+      "id": "manila-submun",
+      "title": "City of Manila 换成 14 个 SubMun",
+      "detail": "City of Manila (1380600000) 不作为第三级节点；改用它的 SubMun（Tondo I/II、Binondo …，名称原样），带 partOfCode=1380600000、partOfName=Manila City；马尼拉的 Barangay 挂在各 SubMun 下（官方 Notes A.1：SubMun 不是正式的市镇）。"
+    },
+    {
+      "id": "pateros",
+      "title": "Pateros 挂在 Metro Manila 下",
+      "detail": "Pateros (1381701000) 是 NCR 唯一的镇，编码里的省级位置 13817 在表里没有对应行，挂在 Metro Manila 下。"
+    },
+    {
+      "id": "huc-geo-province",
+      "title": "17 个非 NCR 独立市（HUC）按地理省挂靠",
+      "detail": "编码 MM=00 的 HUC 在 PSGC 里直接挂在大区下。按所在地理省挂到省级节点下（geoAttached=true）。依据：PSGC 表省份行 K 列注释「(excluding CITY OF …)」+ 该市 Correspondence Code 前 4 位 = 地理省旧省码，两重核对全部一致。"
+    },
+    {
+      "id": "isabela-city",
+      "title": "Isabela City：Region IX 下单独的省级节点",
+      "detail": "City of Isabela 地理上在 Basilan（BARMM），行政上属 Region IX（官方 Notes A.2），与地理省不在同一大区，不硬挂。官方给了特殊省级编码 0990100000「City of Isabela (Not a Province)」，直接用这个真实编码作省级节点，显示名「Isabela City」，下面挂这座市本身 (0990101000, CC)。"
+    },
+    {
+      "id": "special-geographic-area",
+      "title": "Special Geographic Area 作为 BARMM 的省级节点",
+      "detail": "1999900000「Special Geographic Area」层级为空，属 BARMM，用真实编码作省级节点，下面 8 个镇。"
+    },
+    {
+      "id": "sulu",
+      "title": "Sulu 在 Region IX 下",
+      "detail": "Sulu (0906600000) 已划归 Region IX（Correspondence Code 仍是 BARMM 旧码 156600000），按官方编码放在 Zamboanga Peninsula 下。"
+    },
+    {
+      "id": "cotabato-city",
+      "title": "Cotabato City 已在 Maguindanao del Norte 下",
+      "detail": "City of Cotabato (1908703000, ICC) 本期官方编码已在 Maguindanao del Norte (1908700000) 下，无需挂靠处理。"
+    },
+    {
+      "id": "icc-under-province",
+      "title": "其余 ICC 官方编码已在所在省下",
+      "detail": "Dagupan、Santiago、Naga (Camarines Sur)、Ormoc、Cotabato 五个 ICC 的编码都在省下（MM≠00），不做处理。"
+    },
+    {
+      "id": "lucena-footnote",
+      "title": "Lucena 名称里的脚注标记",
+      "detail": "原表名称为「City of Lucenaa/」，末尾 a/ 是脚注标记（表尾说明：PSA Board 将 Lucena 视为 HUC 仅用于统计，不构成法律认定）。名称去掉 a/，cityClass 仍为 HUC。"
+    },
+    {
+      "id": "asterisk-barangays",
+      "title": "3 个 Barangay 名称末尾带 *",
+      "detail": "原表名称末尾有「*」，Notes 里没有解释。显示名和 officialName 都去掉 *，原标记存在 flat 的 footnoteMark 字段。"
+    },
+    {
+      "id": "city-of-rename",
+      "title": "City of X → X City",
+      "detail": "138 个市的显示名由「City of X」改为「X City」，官方名存在 officialName。名称中间带 City of 的保持原样：Island Garden City of Samal、Science City of Muñoz。名称去首尾空白、合并多余空格的行共 2854 个。"
+    },
+    {
+      "id": "region-names",
+      "title": "大区显示名与 BP 5 大区",
+      "detail": "第一级显示常用简称（NCR、CAR、Ilocos Region …），官方全名存在 officialName；每个大区带 macroRegion / macroRegionCode（BP 的 Metro Manila / North Luzon / South Luzon / Visayas / Mindanao）。"
+    },
+    {
+      "id": "skipped-rows",
+      "title": "跳过的非数据行",
+      "detail": "PSGC 表末尾的空行和 Lucena 脚注说明行不是地区，跳过。"
+    },
+    {
+      "id": "search-index-exclusions",
+      "title": "搜索索引里省略的省级节点",
+      "detail": "省级节点只有一个同名下级时（Isabela City），搜索只保留下级市，避免出现两条一样的结果；路径表里仍保留该省级节点。"
+    }
+  ]
+}
