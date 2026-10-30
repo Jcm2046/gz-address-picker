@@ -4,7 +4,7 @@
 <meta name="robots" content="noindex,nofollow">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>PSGC 四级地址选择器 Demo</title>
+<title>Philippine Address Picker · Demo</title>
 <link rel="icon" href="data:,">
 <style>
   :root {
@@ -19,8 +19,10 @@
   .app { max-width: 390px; margin: 0 auto; min-height: 100vh; padding: 16px 16px 32px; }
   .top .title { font-size: 18px; font-weight: 600; }
   .top .sub { color: var(--sub); font-size: 12px; margin-top: 2px; }
+  .top .sub span { white-space: nowrap; }
+  .top .intro { color: #4e5969; font-size: 13px; line-height: 1.45; margin: 10px 0 0; }
   .mode { display: flex; background: #e8eaee; border-radius: 10px; padding: 3px; margin: 14px 0 16px; }
-  .mode button { flex: 1; text-align: center; padding: 7px 0; border-radius: 8px; font-size: 14px; color: #4e5969; }
+  .mode button { flex: 1; text-align: center; padding: 6px 4px; border-radius: 8px; font-size: 13px; line-height: 1.25; text-wrap: balance; color: #4e5969; }
   .mode button.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
   .field label { display: block; font-size: 13px; color: #4e5969; margin: 0 0 6px 2px; }
   .selectbox { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 12px 14px;
@@ -74,20 +76,21 @@
     border: 2px solid #c9cdd4; border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .state.error { color: var(--danger); }
-  .state.error button { color: var(--accent); margin-left: 6px; text-decoration: underline; }
+  .state.error button { color: var(--accent); text-decoration: underline; }
   .more { padding: 10px 16px 0; font-size: 12px; color: var(--sub); text-align: center; }
 </style>
 </head>
 <body>
 <div class="app">
   <header class="top">
-    <div class="title">PSGC 四级地址选择器 · Demo</div>
-    <div class="sub" id="ver">Loading...</div>
+    <div class="title">Philippine Address Picker · Demo</div>
+    <div class="sub" id="ver">Loading…</div>
+    <p class="intro">Pick your address in 4 steps: Region → Province → City / Municipality → Barangay. Or use the search box to jump straight to a province, city or barangay (no need to type ñ).</p>
   </header>
 
-  <div class="mode" role="tablist" aria-label="第一级方案">
-    <button type="button" data-mode="official" class="on" role="tab" aria-selected="true">官方 18 大区</button>
-    <button type="button" data-mode="bp" role="tab" aria-selected="false">BP 5 大区</button>
+  <div class="mode" role="tablist" aria-label="Region grouping">
+    <button type="button" data-mode="official" class="on" role="tab" aria-selected="true">Official regions (18)</button>
+    <button type="button" data-mode="bp" role="tab" aria-selected="false">5 zones (BingoPlus style)</button>
   </div>
 
   <div class="field">
@@ -98,14 +101,14 @@
   </div>
 
   <section class="dev" id="dev" aria-live="polite"></section>
-  <p class="hint">说明：逐级读取 <code>../dist/v1/children/{上级编码}.json</code>；搜索读取 <code>search-index.json</code>（首次搜索时加载）。中途关闭不改原值；改上级会清空下级。</p>
+  <p class="hint">How it works: each level loads <code>../dist/v1/children/{parentCode}.json</code> only when needed; search loads <code>search-index.json</code> the first time you search. Closing the picker halfway keeps your previous selection; changing a level clears the levels below it.</p>
 </div>
 
 <div class="sheet" id="sheet" hidden>
   <div class="mask" data-close></div>
   <div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
     <div class="head"><span id="sheetTitle">Select Location</span><button type="button" class="x" data-close aria-label="Close">×</button></div>
-    <div class="search"><input id="q" type="search" placeholder="Search Province, City or Barangay" autocomplete="off" enterkeyhint="search"></div>
+    <div class="search"><input id="q" type="search" placeholder="Search province, city or barangay" autocomplete="off" enterkeyhint="search"></div>
     <nav class="tabs" id="tabs" aria-label="Levels">
       <button type="button" data-i="0">Region</button>
       <button type="button" data-i="1">Province</button>
@@ -133,16 +136,23 @@
   };
   const tabBtns = [...el.tabs.querySelectorAll('button')];
 
-  // ñ / 重音不敏感 + 不区分大小写
+  // Accent-insensitive (ñ = n) and case-insensitive
   const fold = (s) => (/[^\x00-\x7f]/.test(s) ? s.normalize('NFD').replace(/[̀-ͯ]/g, '') : s).toLowerCase();
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  // 相邻同名只保留一个
+  // Keep only one of adjacent duplicate names
   const dedupe = (parts) => parts.filter(Boolean).reduce((a, p) => {
     if (!a.length || fold(a[a.length - 1]) !== fold(p)) a.push(p);
     return a;
   }, []);
 
-  // ---------- 数据加载（按需、带缓存）----------
+  // "2026-09-30" -> "30 Sep 2026" (fixed month names, so the result does not depend on the browser's locale)
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const fmtDate = (d) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d));
+    return m && MONTHS[Number(m[2]) - 1] ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : String(d);
+  };
+
+  // ---------- Data loading (on demand, cached) ----------
   const cache = new Map();
   const inflight = new Map();
   function load(path) {
@@ -156,12 +166,12 @@
     return inflight.get(path);
   }
 
-  // ---------- 状态 ----------
+  // ---------- State ----------
   const state = {
-    mode: 'official',  // official = 官方 18 大区；bp = BP 5 大区
-    value: null,       // 已确认的值 {region, macro, province, city, barangay}
-    draft: null,       // 抽屉里的草稿 [第一级, 省, 市, Barangay]
-    step: 0,           // 当前页签
+    mode: 'official',  // official = the 18 official regions; bp = BingoPlus-style 5 zones
+    value: null,       // confirmed value {region, macro, province, city, barangay}
+    draft: null,       // draft inside the drawer [level 1, province, city, barangay]
+    step: 0,           // current tab
   };
 
   const l1Source = () => (state.mode === 'official' ? 'regions.json' : 'macro-regions.json');
@@ -170,26 +180,26 @@
   const backfill = (v) => dedupe([l1Name(v), v.province.name, v.city.name, v.barangay.name]).join(', ');
   const mailing = (v) => dedupe([v.barangay.name, v.city.name, v.province.name, l1Name(v)]).join(', ');
 
-  // ---------- 选择框 + 将保存的值 ----------
+  // ---------- Select box + the value to be saved ----------
   function renderField() {
     const v = state.value;
     el.loc.classList.toggle('placeholder', !v);
     el.locText.textContent = v ? backfill(v) : 'Select Region / Province / City / Barangay';
     if (!v) {
-      el.dev.innerHTML = '<h3>将保存的值</h3><div>尚未选择</div>';
+      el.dev.innerHTML = '<h3>What we will save (for developers)</h3><div>Nothing selected yet</div>';
       return;
     }
     const row = (k, code, name, extra) => `<tr><td>${k}</td><td><code>${esc(code)}</code> ${esc(name)}${extra ? ' <span style="color:#8f959e">(' + esc(extra) + ')</span>' : ''}</td></tr>`;
-    el.dev.innerHTML = '<h3>将保存的值（编码 + 名称快照）</h3><table>'
+    el.dev.innerHTML = '<h3>What we will save (for developers)</h3><table>'
       + row('regionCode', v.region.code, v.region.name)
       + row('macroRegion', v.macro.code, v.macro.name)
       + row('provinceCode', v.province.code, v.province.name, v.province.synthetic ? 'synthetic' : '')
       + row('cityCode', v.city.code, v.city.name, [v.city.cityClass, v.city.partOfName ? 'part of ' + v.city.partOfName : ''].filter(Boolean).join(', '))
       + row('barangayCode', v.barangay.code, v.barangay.name)
-      + '</table><div class="mail">邮寄拼接（从小到大）：' + esc(mailing(v)) + '</div>';
+      + '</table><div class="mail">Mailing address (small → large): ' + esc(mailing(v)) + '</div>';
   }
 
-  // ---------- 抽屉 ----------
+  // ---------- Drawer ----------
   function openSheet() {
     const v = state.value;
     if (v) {
@@ -214,7 +224,7 @@
     clearTimeout(searchTimer);
     el.sheet.hidden = true;
     document.body.style.overflow = '';
-    state.draft = null;  // 没选到 Barangay 就关闭：草稿丢弃，选择框保持打开前的值
+    state.draft = null;  // closed before a barangay was picked: drop the draft, the select box keeps its previous value
   }
 
   function renderTabs() {
@@ -256,10 +266,10 @@
     if (cache.has(src)) return draw(cache.get(src));
     el.list.dataset.level = String(k);
     el.list.dataset.count = '';
-    el.list.innerHTML = '<li class="state loading">Loading...</li>';
+    el.list.innerHTML = '<li class="state loading">Loading…</li>';
     load(src).then(draw).catch(() => {
       if (token !== listToken) return;
-      el.list.innerHTML = '<li class="state error">Failed to load.<button type="button" data-retry>Retry</button></li>';
+      el.list.innerHTML = '<li class="state error">Couldn\'t load. <button type="button" data-retry>Tap to retry.</button></li>';
     });
   }
 
@@ -267,7 +277,7 @@
     const prev = state.draft[k];
     if (!prev || prev.code !== item.code) {
       state.draft[k] = item;
-      for (let j = k + 1; j < 4; j++) state.draft[j] = null;  // 改上级清空下级
+      for (let j = k + 1; j < 4; j++) state.draft[j] = null;  // changing a level clears the levels below it
     }
     if (k === 3) { commit(); closeSheet(); renderField(); return; }
     state.step = k + 1;
@@ -287,7 +297,7 @@
     };
   }
 
-  // ---------- 搜索 ----------
+  // ---------- Search ----------
   let IDX = null;
   let idxPromise = null;
   function loadIndex() {
@@ -306,7 +316,7 @@
     return idxPromise;
   }
 
-  // 0 = 名称以关键词开头；1 = 某个词以关键词开头；2 = 名称中间包含；-1 = 不匹配
+  // 0 = name starts with the keyword; 1 = a word in the name starts with it; 2 = the name contains it; -1 = no match
   function rankIn(f, q) {
     let i = f.indexOf(q);
     if (i < 0) return -1;
@@ -319,8 +329,8 @@
   const ancC = (e) => { const p = IDX.P[e.p]; return [p.f].concat(ancP(p)); };
   const ancB = (e) => { const c = IDX.C[e.c]; return [c.f, c.fa].concat(ancC(c)); };
 
-  // 排序：先「开头 / 词首命中」（按 Province → City → Barangay，同级里开头命中在前），
-  // 再「名称中间包含」，最后「多词靠上级名命中」；同一档内保持索引里的 A–Z 顺序
+  // Ranking: first "starts with / word-start" matches (Province → City → Barangay, prefix matches first within a level),
+  // then "contained in the middle of the name", finally "multi-word matches via parent names"; within a bucket the index's A–Z order is kept
   const bucketOf = (r, lvl) => (r <= 1 ? lvl * 2 + r : r === 2 ? 6 + lvl : 9 + lvl);
 
   function search(raw) {
@@ -331,7 +341,7 @@
     const consider = (lvl, e, alias, anc) => {
       let r = rankIn(e.f, q);
       if (r < 0 && alias) { const ra = rankIn(alias, q); if (ra >= 0) r = Math.max(ra, 1); }
-      if (r < 0 && toks.length > 1) {  // 多个词：每个词命中自己或上级名称，且至少一个词命中自己
+      if (r < 0 && toks.length > 1) {  // multiple words: each word matches the item itself or a parent name, and at least one word matches the item itself
         let own = false;
         let all = true;
         let ancestors = null;
@@ -377,19 +387,19 @@
   function showResults(on) {
     el.results.hidden = !on;
     el.list.hidden = on;
-    el.tabs.hidden = on;  // 搜索态不显示页签
+    el.tabs.hidden = on;  // the tabs are hidden while searching
   }
   function runSearch(raw) {
     const token = ++searchToken;
     showResults(true);
-    if (!IDX) el.results.innerHTML = '<li class="state loading">Loading...</li>';
+    if (!IDX) el.results.innerHTML = '<li class="state loading">Loading…</li>';
     loadIndex().then(() => {
       if (token !== searchToken) return;
       const { items, total, q } = search(raw);
       el.results._items = items.map(resolve);
       el.results.dataset.count = String(items.length);
       el.results.dataset.total = String(total);
-      if (!items.length) { el.results.innerHTML = '<li class="state">No results</li>'; return; }
+      if (!items.length) { el.results.innerHTML = '<li class="state">No matching location. Try another keyword.</li>'; return; }
       el.results.innerHTML = el.results._items.map((x, i) => {
         const l1 = state.mode === 'official' ? x.reg.name : x.mac.name;
         const anc = dedupe([l1, x.lvl > 0 ? x.prov.name : null, x.lvl > 1 ? x.city.name : null]);
@@ -401,7 +411,7 @@
       el.body.scrollTop = 0;
     }).catch(() => {
       if (token !== searchToken) return;
-      el.results.innerHTML = '<li class="state error">Failed to load.<button type="button" data-retry-search>Retry</button></li>';
+      el.results.innerHTML = '<li class="state error">Couldn\'t load. <button type="button" data-retry-search>Tap to retry.</button></li>';
     });
   }
 
@@ -411,11 +421,11 @@
       : { code: x.mac.code, name: x.mac.name };
     const prov = { code: x.prov.code, name: x.prov.name, regionCode: x.reg.code, regionName: x.reg.name, macroRegionCode: x.mac.code, synthetic: x.prov.code.startsWith('X') };
     const city = x.city ? { code: x.city.code, name: x.city.name, cityClass: x.city.cls, partOfName: x.city.partOf } : null;
-    if (x.lvl === 2) {  // 点 Barangay：四级一次填好，关闭抽屉
+    if (x.lvl === 2) {  // barangay picked: all four levels are filled at once and the drawer closes
       state.draft = [l1, prov, city, { code: x.code, name: x.name }];
       commit(); closeSheet(); renderField(); return;
     }
-    // 点 City / Province：填好上级，跳到下一级页签继续选
+    // city / province picked: fill the upper levels and jump to the next tab to keep choosing
     state.draft = x.lvl === 1 ? [l1, prov, city, null] : [l1, prov, null, null];
     state.step = x.lvl === 1 ? 3 : 2;
     el.q.value = '';
@@ -424,7 +434,7 @@
     renderList();
   }
 
-  // ---------- 事件 ----------
+  // ---------- Events ----------
   el.loc.addEventListener('click', openSheet);
   el.sheet.addEventListener('click', (ev) => {
     if (ev.target.closest('[data-close]')) return closeSheet();
@@ -444,7 +454,7 @@
   el.tabs.addEventListener('click', (ev) => {
     const b = ev.target.closest('button');
     if (!b || b.disabled) return;
-    state.step = Number(b.dataset.i);  // 点已选页签回退到该级
+    state.step = Number(b.dataset.i);  // tapping a filled tab goes back to that level
     renderTabs();
     renderList();
   });
@@ -465,15 +475,20 @@
       x.classList.toggle('on', x === b);
       x.setAttribute('aria-selected', x === b ? 'true' : 'false');
     });
-    renderField();  // 已选的值不丢：第一级按当前方案显示官方大区或 BP 大区
+    renderField();  // the picked value is kept: level 1 is shown as the official region or the BP zone depending on the current mode
   }));
 
   renderField();
   load('meta.json').then((m) => {
-    el.ver.textContent = `${m.psgcVersion} · 发布 ${m.publicationDate} · Barangay ${m.counts.tree.barangay.toLocaleString('en-US')}`;
+    // three parts joined by " · "; each part never breaks in the middle, so a narrow screen wraps between parts, not inside them
+    el.ver.innerHTML = [
+      'Official PSGC data',
+      `${String(m.psgcVersion).replace(/^PSGC\s+/i, '')} (as of ${fmtDate(m.publicationDate)})`,
+      `${m.counts.tree.barangay.toLocaleString('en-US')} barangays`,
+    ].map((t) => `<span>${esc(t)}</span>`).join(' · ');
     document.body.dataset.ready = '1';
   }).catch(() => {
-    el.ver.textContent = '数据加载失败：请用本地静态服务打开（不能直接双击 file://）';
+    el.ver.textContent = 'Couldn\'t load the data. Please refresh, or open this page through a web server (file:// won\'t work).';
     document.body.dataset.ready = 'error';
   });
 })();
