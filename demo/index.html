@@ -31,11 +31,43 @@
   .dev { margin-top: 16px; background: var(--card); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #4e5969; }
   .dev h3 { margin: 0 0 6px; font-size: 12px; color: var(--sub); font-weight: 500; }
   .dev table { width: 100%; border-collapse: collapse; }
-  .dev td { padding: 3px 0; vertical-align: top; border-top: 1px solid var(--line); }
-  .dev td:first-child { width: 92px; color: var(--sub); }
+  .dev td { padding: 3px 0; vertical-align: top; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+  .dev td:first-child { width: 120px; padding-right: 8px; color: var(--sub); }
   .dev code { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); }
-  .dev .mail { margin-top: 8px; color: var(--text); }
+  .dev .note { color: var(--sub); }
+  .dev .mail { margin-top: 8px; color: var(--text); overflow-wrap: anywhere; }
   .hint { color: var(--sub); font-size: 12px; margin: 14px 2px 0; }
+
+  /* ---------- Edit Your Address form ---------- */
+  [hidden] { display: none !important; }
+  html { scroll-padding-bottom: 84px; }  /* scrolling a field into view keeps it clear of the Save bar */
+  .form-title { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
+  .field { margin-bottom: 14px; }
+  .field label .req { color: var(--danger); margin-right: 3px; }
+  .input { display: block; width: 100%; height: 48px; padding: 0 14px; background: var(--card); border: 1px solid #dfe2e6; border-radius: 10px;
+    font: inherit; font-size: 16px; color: var(--text); outline: none; -webkit-appearance: none; appearance: none; }
+  .input::placeholder { color: var(--sub); opacity: 1; }
+  .input:focus { border-color: var(--accent); }
+  .field.invalid .input, .field.invalid .selectbox { border-color: var(--danger); }
+  .err { margin: 4px 2px 0; color: var(--danger); font-size: 12px; line-height: 16px; }
+  .savebar { position: sticky; bottom: 0; z-index: 5; margin: 16px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(245, 246, 248, .94); box-shadow: 0 -1px 0 #e5e6eb; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  .btn { display: block; width: 100%; height: 46px; border-radius: 23px; text-align: center; font-size: 16px; font-weight: 600; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.primary:disabled { background: #c9cdd4; color: #fff; cursor: not-allowed; }
+  .btn.ghost { background: var(--card); color: var(--text); border: 1px solid #dfe2e6; }
+  /* label above value: Confirm Your Address and the order's Address card */
+  .kv { padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .kv:last-child { border-bottom: 0; }
+  .kv .k { font-size: 12px; color: var(--sub); }
+  .kv .v { margin-top: 2px; overflow-wrap: anywhere; }
+  .panel.fit { height: auto; max-height: 84vh; }
+  .cbody { flex: 0 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 16px; }
+  .actions { flex: none; display: flex; gap: 12px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+  .actions .btn { flex: 1 1 0; min-width: 0; }
+  .card { background: var(--card); border-radius: 12px; padding: 12px 14px 4px; }
+  .card h2 { margin: 0 0 2px; font-size: 15px; font-weight: 600; }
+  .linkbtn { margin: 12px 2px 0; color: var(--accent); font-size: 14px; }
 
   .sheet { position: fixed; inset: 0; z-index: 10; }
   .sheet[hidden] { display: none; }
@@ -83,18 +115,59 @@
   <header class="top">
     <div class="title">Philippine Address Picker · Demo</div>
     <div class="sub" id="ver">Loading…</div>
-    <p class="intro">Pick your address in 4 steps: Region → Province → City / Municipality → Barangay. Or use the search box to jump straight to a province, city or barangay (no need to type ñ).</p>
+    <p class="intro">Fill in a delivery address as a player would. Pick the area in 4 steps (Region → Province → City / Municipality → Barangay) or search for it (no need to type ñ), then add the street and unit. Fields marked * are required. Save, confirm, and see how the address appears on the order.</p>
   </header>
 
-  <div class="field">
-    <label for="loc">Region / Province / City / Barangay</label>
-    <button type="button" id="loc" class="selectbox placeholder" aria-haspopup="dialog">
-      <span class="txt" id="locText">Select Region / Province / City / Barangay</span><i class="chev"></i>
-    </button>
-  </div>
+  <form id="edit" novalidate autocomplete="off" aria-labelledby="editTitle">
+    <h2 class="form-title" id="editTitle">Edit Your Address</h2>
+    <div class="field" data-f="name">
+      <label for="fName"><span class="req" aria-hidden="true">*</span>Recipient’s Full Name</label>
+      <input id="fName" class="input" type="text" maxlength="50" placeholder="Please enter Recipient’s Full Name" aria-required="true" aria-describedby="eName">
+      <p class="err" id="eName" hidden></p>
+    </div>
+    <div class="field" data-f="phone">
+      <label for="fPhone"><span class="req" aria-hidden="true">*</span>Mobile Number</label>
+      <input id="fPhone" class="input" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="Please enter your Mobile Number" aria-required="true" aria-describedby="ePhone">
+      <p class="err" id="ePhone" hidden></p>
+    </div>
+    <div class="field" data-f="loc">
+      <label for="loc"><span class="req" aria-hidden="true">*</span>Region / Province / City / Barangay</label>
+      <button type="button" id="loc" class="selectbox placeholder" aria-haspopup="dialog" aria-describedby="eLoc">
+        <span class="txt" id="locText">Select Region / Province / City / Barangay</span><i class="chev"></i>
+      </button>
+      <p class="err" id="eLoc" hidden></p>
+    </div>
+    <div class="field" data-f="street">
+      <label for="fStreet"><span class="req" aria-hidden="true">*</span>Street Name</label>
+      <input id="fStreet" class="input" type="text" maxlength="100" placeholder="e.g. Jupiter Street" aria-required="true" aria-describedby="eStreet">
+      <p class="err" id="eStreet" hidden></p>
+    </div>
+    <div class="field" data-f="building">
+      <label for="fBuilding">Building / Subdivision / Village Name (Optional)</label>
+      <input id="fBuilding" class="input" type="text" maxlength="100" placeholder="e.g. Diamond Tower or Bel-Air Village">
+    </div>
+    <div class="field" data-f="unit">
+      <label for="fUnit"><span class="req" aria-hidden="true">*</span>Unit / Floor / House / Lot / Block No.</label>
+      <input id="fUnit" class="input" type="text" maxlength="100" placeholder="e.g. Unit 1204, 12/F or Block 12 Lot 14" aria-required="true" aria-describedby="eUnit">
+      <p class="err" id="eUnit" hidden></p>
+    </div>
+    <div class="field" data-f="zip">
+      <label for="fZip">Postal / ZIP Code (Optional)</label>
+      <input id="fZip" class="input" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 1209" aria-describedby="eZip">
+      <p class="err" id="eZip" hidden></p>
+    </div>
+  </form>
 
-  <section class="dev" id="dev" aria-live="polite"></section>
+  <!-- After Confirm: the address card of the order details -->
+  <section id="order" hidden>
+    <div class="card"><h2>Address</h2><div id="orderRows"></div></div>
+    <button type="button" class="linkbtn" id="back">Back to the form</button>
+  </section>
+
+  <section class="dev" id="dev"></section>
   <p class="hint">How it works: each level loads <code>../dist/v1/children/{parentCode}.json</code> only when needed; search loads <code>search-index.json</code> the first time you search. Closing the picker halfway keeps your previous selection; changing a level clears the levels below it.</p>
+  <!-- Save stays at the bottom of the screen (sticky), like Save in the product's Edit Your Address -->
+  <div class="savebar" id="saveBar"><button type="submit" form="edit" class="btn primary" id="save" disabled>Save</button></div>
 </div>
 
 <div class="sheet" id="sheet" hidden>
@@ -115,6 +188,15 @@
   </div>
 </div>
 
+<div class="sheet" id="confirm" hidden>
+  <div class="mask" data-close></div>
+  <div class="panel fit" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="head"><span id="confirmTitle">Confirm Your Address</span><button type="button" class="x" data-close aria-label="Close">×</button></div>
+    <div class="cbody" id="confirmRows"></div>
+    <div class="actions"><button type="button" class="btn ghost" id="cEdit">Edit</button><button type="button" class="btn primary" id="cConfirm">Confirm</button></div>
+  </div>
+</div>
+
 <script>
 (() => {
   'use strict';
@@ -126,7 +208,11 @@
   const el = {
     ver: $('#ver'), loc: $('#loc'), locText: $('#locText'), dev: $('#dev'), sheet: $('#sheet'), q: $('#q'),
     tabs: $('#tabs'), list: $('#list'), results: $('#results'), body: $('#body'),
+    form: $('#edit'), save: $('#save'), saveBar: $('#saveBar'), confirm: $('#confirm'), confirmRows: $('#confirmRows'),
+    order: $('#order'), orderRows: $('#orderRows'), back: $('#back'),
   };
+  // The typed fields of Edit Your Address (the location box is #loc)
+  const input = { name: $('#fName'), phone: $('#fPhone'), street: $('#fStreet'), building: $('#fBuilding'), unit: $('#fUnit'), zip: $('#fZip') };
   const tabBtns = [...el.tabs.querySelectorAll('button')];
 
   // Accent-insensitive (ñ = n) and case-insensitive; used to compare names (e.g. adjacent duplicates), not for search
@@ -323,26 +409,137 @@
 
   // Level 1 (Region) is one of the 5 BingoPlus-style zones; level 2 lists every province in that zone
   const sourceFor = (k) => (k === 0 ? 'macro-regions.json' : 'children/' + state.draft[k - 1].code + '.json');
+  // Select box and the address row of Confirm Your Address: large → small, the 4 picked levels only
   const backfill = (v) => dedupe([v.region.name, v.province.name, v.city.name, v.barangay.name]).join(', ');
-  const mailing = (v) => dedupe([v.barangay.name, v.city.name, v.province.name, v.region.name]).join(', ');
+  // Full address (order details, the export's Full Address, the address for the supplier): small → large — Unit, Building,
+  // Street, Barangay, City, then for Manila's 14 districts the city they are part of (partOfName = Manila City), Province,
+  // Region, ZIP. Empty parts are skipped and adjacent duplicates are written once.
+  const fullAddress = (f, v) => dedupe([f.unit, f.building, f.street]
+    .concat(v ? [v.barangay.name, v.city.name, v.city.partOfName, v.province.name, v.region.name] : [], [f.zip])).join(', ');
+
+  // ---------- Form: values, checks, errors ----------
+  const FIELDS = ['name', 'phone', 'loc', 'street', 'building', 'unit', 'zip'];  // form order
+  const MSG = {
+    name: 'Recipient’s Full Name is required',
+    phone: 'Mobile Number is required',
+    phoneFormat: 'Mobile Number must be 11 digits starting with 09',  // demo wording; the live site / localization team has the final text
+    loc: 'Please select all 4 location levels',
+    street: 'Street Name is required',
+    unit: 'Unit / Floor / House / Lot / Block No. is required',
+    zip: 'Postal / ZIP Code must be 4 digits',
+  };
+  const PHONE_PREFIX = '09';                 // filled in when the empty Mobile Number gets focus, as on the live site
+  const DIGITS_MAX = { phone: 11, zip: 4 };  // digits-only fields and their length limit
+  // Values with leading / trailing spaces removed
+  const values = () => {
+    const f = {};
+    for (const k in input) f[k] = input[k].value.trim();
+    return f;
+  };
+  const phoneEmpty = (p) => p === '' || p === PHONE_PREFIX;  // just the auto-filled 09 counts as empty
+  // The error for one field ('' = none). Building is optional and has no check.
+  function problem(k, f) {
+    if (k === 'name') return f.name ? '' : MSG.name;
+    if (k === 'phone') return phoneEmpty(f.phone) ? MSG.phone : /^09\d{9}$/.test(f.phone) ? '' : MSG.phoneFormat;
+    if (k === 'loc') return state.value ? '' : MSG.loc;
+    if (k === 'street') return f.street ? '' : MSG.street;
+    if (k === 'unit') return f.unit ? '' : MSG.unit;
+    if (k === 'zip') return !f.zip || /^\d{4}$/.test(f.zip) ? '' : MSG.zip;
+    return '';
+  }
+  const fieldBox = (k) => el.form.querySelector(`.field[data-f="${k}"]`);
+  // Red box + red text under the field; msg = '' clears it
+  function setError(k, msg) {
+    const box = fieldBox(k);
+    const err = box.querySelector('.err');
+    if (!err) return;
+    box.classList.toggle('invalid', !!msg);
+    err.textContent = msg;
+    err.hidden = !msg;
+    if (input[k]) input[k].setAttribute('aria-invalid', msg ? 'true' : 'false');
+  }
+  const showsError = (k) => fieldBox(k).classList.contains('invalid');
+  // Save lights up once the 5 required fields have a value; formats are checked when Save is tapped
+  const ready = (f) => !!(f.name && !phoneEmpty(f.phone) && state.value && f.street && f.unit);
+  function refresh() {
+    el.save.disabled = !ready(values());
+    renderDev();
+  }
+  // Keep digits only, at most max of them, and keep the caret where it was
+  function keepDigits(inp, max) {
+    const v = inp.value;
+    const clean = v.replace(/\D/g, '').slice(0, max);
+    if (clean === v) return;
+    const caret = inp.selectionStart == null ? v.length : inp.selectionStart;
+    const pos = Math.min(v.slice(0, caret).replace(/\D/g, '').length, clean.length);
+    inp.value = clean;
+    try { inp.setSelectionRange(pos, pos); } catch (e) { /* this input type has no caret API */ }
+  }
 
   // ---------- Select box + the value to be saved ----------
   function renderField() {
     const v = state.value;
     el.loc.classList.toggle('placeholder', !v);
     el.locText.textContent = v ? backfill(v) : 'Select Region / Province / City / Barangay';
-    if (!v) {
-      el.dev.innerHTML = '<h3>What we will save (for developers)</h3><div>Nothing selected yet</div>';
-      return;
-    }
-    const row = (k, code, name, extra) => `<tr><td>${k}</td><td><code>${esc(code)}</code> ${esc(name)}${extra ? ' <span style="color:#8f959e">(' + esc(extra) + ')</span>' : ''}</td></tr>`;
+    if (v) setError('loc', '');
+    refresh();
+  }
+
+  // "What we will save" card, redrawn on every change: typed fields, the 4 levels with codes, and the full address
+  function renderDev() {
+    const v = state.value;
+    const f = values();
+    const none = '—';
+    const typed = (k, s) => `<tr class="own"><td>${esc(k)}</td><td>${s ? esc(s) : none}</td></tr>`;
+    const coded = (k, x, extra) => `<tr class="loc"><td>${esc(k)}</td><td>${x ? `<code>${esc(x.code)}</code> ${esc(x.name)}${extra ? ' <span class="note">(' + esc(extra) + ')</span>' : ''}` : none}</td></tr>`;
+    // Manila's 14 districts: partOfName (Manila City) is saved with the order and used in the full address
+    const cityExtra = v ? [v.city.cityClass, v.city.partOfName ? 'partOfName: ' + v.city.partOfName : ''].filter(Boolean).join(', ') : '';
+    const full = fullAddress(f, v);
     el.dev.innerHTML = '<h3>What we will save (for developers)</h3><table>'
-      + row('Region', v.region.code, v.region.name)
-      + row('Official region (for reporting)', v.officialRegion.code, v.officialRegion.name)
-      + row('Province', v.province.code, v.province.name, v.province.synthetic ? 'synthetic' : '')
-      + row('City', v.city.code, v.city.name, [v.city.cityClass, v.city.partOfName ? 'part of ' + v.city.partOfName : ''].filter(Boolean).join(', '))
-      + row('Barangay', v.barangay.code, v.barangay.name)
-      + '</table><div class="mail">Mailing address (small → large): ' + esc(mailing(v)) + '</div>';
+      + typed('Recipient’s Full Name', f.name)
+      + typed('Mobile Number', f.phone)
+      + coded('Region', v && v.region)
+      + coded('Official region (for reporting)', v && v.officialRegion)
+      + coded('Province', v && v.province, v && v.province.synthetic ? 'synthetic' : '')
+      + coded('City', v && v.city, cityExtra)
+      + coded('Barangay', v && v.barangay)
+      + typed('Street Name', f.street)
+      + typed('Building / Subdivision / Village Name', f.building)
+      + typed('Unit / Floor / House / Lot / Block No.', f.unit)
+      + typed('Postal / ZIP Code', f.zip)
+      + '</table><div class="mail">Full Address (small → large): ' + (full ? esc(full) : none) + '</div>';
+  }
+
+  // ---------- Confirm Your Address, then the order details card ----------
+  const kvRows = (rows) => rows.map(([k, val]) => `<div class="kv"><div class="k">${esc(k)}</div><div class="v">${esc(val)}</div></div>`).join('');
+  function openConfirm(f) {
+    el.confirmRows.innerHTML = kvRows([
+      ['Recipient’s Full Name', f.name],
+      ['Mobile Number', f.phone],
+      ['Region / Province / City / Barangay', backfill(state.value)],
+      ['Street Name', f.street],
+      ['Building / Subdivision / Village Name', f.building],  // optional: no row when left empty
+      ['Unit / Floor / House / Lot / Block No.', f.unit],
+      ['Postal / ZIP Code', f.zip],                           // optional: no row when left empty
+    ].filter(([, val]) => val));
+    el.confirm.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+  function closeConfirm() {  // Edit, × or the mask: back to the form, everything typed is kept
+    el.confirm.hidden = true;
+    document.body.style.overflow = '';
+  }
+  function showView(order) {  // order = true: the order details card; false: the form
+    el.form.hidden = order;
+    el.saveBar.hidden = order;
+    el.order.hidden = !order;
+    window.scrollTo(0, 0);
+  }
+  function confirmOrder() {
+    const f = values();
+    el.orderRows.innerHTML = kvRows([['Recipient’s Full Name', f.name], ['Mobile Number', f.phone], ['Address', fullAddress(f, state.value)]]);
+    closeConfirm();
+    showView(true);
   }
 
   // ---------- Drawer ----------
@@ -368,6 +565,7 @@
     el.sheet.hidden = true;
     document.body.style.overflow = '';
     state.draft = null;  // closed before a barangay was picked: drop the draft, the select box keeps its previous value
+    if (!state.value) setError('loc', MSG.loc);  // closing the picker is the select box losing focus: check it
   }
 
   function renderTabs() {
@@ -562,7 +760,44 @@
     }
     searchTimer = setTimeout(() => runSearch(v), 300);
   });
-  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !el.sheet.hidden) closeSheet(); });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    if (!el.sheet.hidden) closeSheet();
+    else if (!el.confirm.hidden) closeConfirm();
+  });
+
+  // Form fields: digits-only fields are cleaned as you type; a field is checked when it loses focus, and a field that shows
+  // an error is checked again as you type, so the error goes away as soon as it is fixed
+  for (const k in input) {
+    const inp = input[k];
+    inp.addEventListener('input', (ev) => {
+      if (DIGITS_MAX[k] && !ev.isComposing) keepDigits(inp, DIGITS_MAX[k]);
+      if (showsError(k)) setError(k, problem(k, values()));
+      refresh();
+    });
+    if (DIGITS_MAX[k]) inp.addEventListener('compositionend', () => { keepDigits(inp, DIGITS_MAX[k]); refresh(); });
+    inp.addEventListener('blur', () => setError(k, problem(k, values())));
+  }
+  input.phone.addEventListener('focus', () => {
+    if (input.phone.value !== '') return;
+    input.phone.value = PHONE_PREFIX;
+    setTimeout(() => { if (document.activeElement === input.phone) input.phone.setSelectionRange(2, 2); });  // caret after 09
+    refresh();
+  });
+  // Save: check every field again, show all errors at once and scroll to the first one; all good → Confirm Your Address
+  el.form.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const f = values();
+    if (!ready(f)) return;  // Save is greyed out until then (this also stops Enter in a field)
+    const bad = FIELDS.filter((k) => { const msg = problem(k, f); setError(k, msg); return !!msg; });
+    if (bad.length) { fieldBox(bad[0]).scrollIntoView({ block: 'center' }); return; }
+    openConfirm(f);
+  });
+  el.confirm.addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-close]') || ev.target.closest('#cEdit')) return closeConfirm();
+    if (ev.target.closest('#cConfirm')) confirmOrder();
+  });
+  el.back.addEventListener('click', () => showView(false));  // demo only: back to the form, values kept
 
   renderField();
   load('meta.json').then((m) => {
