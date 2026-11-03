@@ -17,13 +17,11 @@
     -webkit-text-size-adjust: 100%; }
   button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
   .app { max-width: 390px; margin: 0 auto; min-height: 100vh; padding: 16px 16px 32px; }
+  .top { margin-bottom: 16px; }
   .top .title { font-size: 18px; font-weight: 600; }
   .top .sub { color: var(--sub); font-size: 12px; margin-top: 2px; }
   .top .sub span { white-space: nowrap; }
   .top .intro { color: #4e5969; font-size: 13px; line-height: 1.45; margin: 10px 0 0; }
-  .mode { display: flex; background: #e8eaee; border-radius: 10px; padding: 3px; margin: 14px 0 16px; }
-  .mode button { flex: 1; text-align: center; padding: 6px 4px; border-radius: 8px; font-size: 13px; line-height: 1.25; text-wrap: balance; color: #4e5969; }
-  .mode button.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
   .field label { display: block; font-size: 13px; color: #4e5969; margin: 0 0 6px 2px; }
   .selectbox { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 12px 14px;
     background: var(--card); border: 1px solid #dfe2e6; border-radius: 10px; }
@@ -87,11 +85,6 @@
     <div class="sub" id="ver">Loading…</div>
     <p class="intro">Pick your address in 4 steps: Region → Province → City / Municipality → Barangay. Or use the search box to jump straight to a province, city or barangay (no need to type ñ).</p>
   </header>
-
-  <div class="mode" role="tablist" aria-label="Region grouping">
-    <button type="button" data-mode="official" class="on" role="tab" aria-selected="true">Official regions (18)</button>
-    <button type="button" data-mode="bp" role="tab" aria-selected="false">5 zones (BingoPlus style)</button>
-  </div>
 
   <div class="field">
     <label for="loc">Region / Province / City / Barangay</label>
@@ -168,17 +161,15 @@
 
   // ---------- State ----------
   const state = {
-    mode: 'official',  // official = the 18 official regions; bp = BingoPlus-style 5 zones
-    value: null,       // confirmed value {region, macro, province, city, barangay}
-    draft: null,       // draft inside the drawer [level 1, province, city, barangay]
+    value: null,       // confirmed value {region, officialRegion, province, city, barangay}
+    draft: null,       // draft inside the drawer [region, province, city, barangay]
     step: 0,           // current tab
   };
 
-  const l1Source = () => (state.mode === 'official' ? 'regions.json' : 'macro-regions.json');
-  const sourceFor = (k) => (k === 0 ? l1Source() : 'children/' + state.draft[k - 1].code + '.json');
-  const l1Name = (v) => (state.mode === 'official' ? v.region.name : v.macro.name);
-  const backfill = (v) => dedupe([l1Name(v), v.province.name, v.city.name, v.barangay.name]).join(', ');
-  const mailing = (v) => dedupe([v.barangay.name, v.city.name, v.province.name, l1Name(v)]).join(', ');
+  // Level 1 (Region) is one of the 5 BingoPlus-style zones; level 2 lists every province in that zone
+  const sourceFor = (k) => (k === 0 ? 'macro-regions.json' : 'children/' + state.draft[k - 1].code + '.json');
+  const backfill = (v) => dedupe([v.region.name, v.province.name, v.city.name, v.barangay.name]).join(', ');
+  const mailing = (v) => dedupe([v.barangay.name, v.city.name, v.province.name, v.region.name]).join(', ');
 
   // ---------- Select box + the value to be saved ----------
   function renderField() {
@@ -191,8 +182,8 @@
     }
     const row = (k, code, name, extra) => `<tr><td>${k}</td><td><code>${esc(code)}</code> ${esc(name)}${extra ? ' <span style="color:#8f959e">(' + esc(extra) + ')</span>' : ''}</td></tr>`;
     el.dev.innerHTML = '<h3>What we will save (for developers)</h3><table>'
-      + row('regionCode', v.region.code, v.region.name)
-      + row('macroRegion', v.macro.code, v.macro.name)
+      + row('Region', v.region.code, v.region.name)
+      + row('Official region (for reporting)', v.officialRegion.code, v.officialRegion.name)
       + row('provinceCode', v.province.code, v.province.name, v.province.synthetic ? 'synthetic' : '')
       + row('cityCode', v.city.code, v.city.name, [v.city.cityClass, v.city.partOfName ? 'part of ' + v.city.partOfName : ''].filter(Boolean).join(', '))
       + row('barangayCode', v.barangay.code, v.barangay.name)
@@ -203,10 +194,7 @@
   function openSheet() {
     const v = state.value;
     if (v) {
-      const l1 = state.mode === 'official'
-        ? { code: v.region.code, name: v.region.name, macroRegionCode: v.macro.code, macroRegion: v.macro.name }
-        : { code: v.macro.code, name: v.macro.name };
-      state.draft = [l1, { ...v.province, regionCode: v.region.code, regionName: v.region.name, macroRegionCode: v.macro.code }, { ...v.city }, { ...v.barangay }];
+      state.draft = [{ ...v.region }, { ...v.province, regionCode: v.officialRegion.code, regionName: v.officialRegion.name, macroRegionCode: v.region.code }, { ...v.city }, { ...v.barangay }];
       state.step = 3;
     } else {
       state.draft = [null, null, null, null];
@@ -250,9 +238,7 @@
       if (token !== listToken) return;
       const sel = state.draft[k] && state.draft[k].code;
       el.list.innerHTML = items.map((it) => {
-        let sub = '';
-        if (k === 0 && state.mode === 'official' && it.officialName && it.officialName !== it.name) sub = it.officialName;
-        if (k === 0 && state.mode === 'bp') sub = it.regions.map((r) => r.designation).join(' · ');
+        const sub = k === 0 ? it.regions.map((r) => r.designation).join(' · ') : '';  // Region rows: the official regions in this zone, e.g. IV-A · MIMAROPA · V
         const tag = it.partOfName ? `<span class="tag">${esc(it.partOfName)}</span>` : '';
         return `<li><button type="button" class="row${it.code === sel ? ' sel' : ''}" data-code="${esc(it.code)}">`
           + `<span class="main"><span class="nm">${esc(it.name)}</span>${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</span>${tag}<span class="ck">✓</span></button></li>`;
@@ -287,10 +273,9 @@
 
   function commit() {
     const [a, p, c, b] = state.draft;
-    const region = state.mode === 'official' ? { code: a.code, name: a.name } : { code: p.regionCode, name: p.regionName };
-    const macro = state.mode === 'official' ? { code: a.macroRegionCode, name: a.macroRegion } : { code: a.code, name: a.name };
     state.value = {
-      region, macro,
+      region: { code: a.code, name: a.name },                     // the Region field: a BP zone, e.g. macro-south-luzon / South Luzon
+      officialRegion: { code: p.regionCode, name: p.regionName },  // from the province item; saved with the order for reporting
       province: { code: p.code, name: p.name, synthetic: !!p.synthetic },
       city: { code: c.code, name: c.name, cityClass: c.cityClass, partOfName: c.partOfName || null },
       barangay: { code: b.code, name: b.name },
@@ -401,8 +386,7 @@
       el.results.dataset.total = String(total);
       if (!items.length) { el.results.innerHTML = '<li class="state">No matching location. Try another keyword.</li>'; return; }
       el.results.innerHTML = el.results._items.map((x, i) => {
-        const l1 = state.mode === 'official' ? x.reg.name : x.mac.name;
-        const anc = dedupe([l1, x.lvl > 0 ? x.prov.name : null, x.lvl > 1 ? x.city.name : null]);
+        const anc = dedupe([x.mac.name, x.lvl > 0 ? x.prov.name : null, x.lvl > 1 ? x.city.name : null]);
         if (anc.length > 1 && fold(anc[anc.length - 1]) === fold(x.name)) anc.pop();
         const tag = x.tag ? `<span class="tag">${esc(x.tag)}</span>` : '';
         return `<li><button type="button" class="row" data-i="${i}" data-code="${esc(x.code)}" data-lvl="${RESULT_LEVELS[x.lvl]}">`
@@ -416,9 +400,7 @@
   }
 
   function pickResult(x) {
-    const l1 = state.mode === 'official'
-      ? { code: x.reg.code, name: x.reg.name, macroRegionCode: x.mac.code, macroRegion: x.mac.name }
-      : { code: x.mac.code, name: x.mac.name };
+    const l1 = { code: x.mac.code, name: x.mac.name };
     const prov = { code: x.prov.code, name: x.prov.name, regionCode: x.reg.code, regionName: x.reg.name, macroRegionCode: x.mac.code, synthetic: x.prov.code.startsWith('X') };
     const city = x.city ? { code: x.city.code, name: x.city.name, cityClass: x.city.cls, partOfName: x.city.partOf } : null;
     if (x.lvl === 2) {  // barangay picked: all four levels are filled at once and the drawer closes
@@ -469,14 +451,6 @@
     searchTimer = setTimeout(() => runSearch(v), 300);
   });
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !el.sheet.hidden) closeSheet(); });
-  document.querySelectorAll('.mode button').forEach((b) => b.addEventListener('click', () => {
-    state.mode = b.dataset.mode;
-    document.querySelectorAll('.mode button').forEach((x) => {
-      x.classList.toggle('on', x === b);
-      x.setAttribute('aria-selected', x === b ? 'true' : 'false');
-    });
-    renderField();  // the picked value is kept: level 1 is shown as the official region or the BP zone depending on the current mode
-  }));
 
   renderField();
   load('meta.json').then((m) => {
