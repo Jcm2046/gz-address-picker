@@ -133,14 +133,17 @@
   const fold = (s) => (/[^\x00-\x7f]/.test(s) ? s.normalize('NFD').replace(/[̀-ͯ]/g, '') : s).toLowerCase();
   // ===== Search core (begin): pure functions, no page state. scripts/build_aliases.ts runs this same block to tell which spellings are already findable =====
   // Normalization, applied the same way to the names in the index and to what the player types: case-insensitive, accents
-  // removed (ñ = n), Sto. / Sta. / Gen. / Pres. / Sen. read as Santo / Santa / General / President / Senator (with or without the
-  // period), hyphens, apostrophes and periods ignored. keepAbbr = true leaves those five words as typed when they have no period
-  // (the query is read both ways, so "sta" also finds Buenavista). With map = true it also returns, for every output character,
-  // the [from, to) range of the source text it came from, so the bold part of a result lands on the right letters.
+  // removed (ñ = n); whole words Sto. / Sta. / Gen. / Pres. / Sen. read as Santo / Santa / General / President / Senator (with or
+  // without the period), Pob. as Poblacion, Roman numerals I–X as 1–10 (not inside a word, not initials like "J.V."); a hyphen
+  // counts as a space; apostrophes and periods are ignored. keepAbbr = true leaves sto / sta / gen / pres / sen as typed when they
+  // have no period (the query is read both ways, so "sta" also finds Buenavista). With map = true it also returns, for every
+  // output character, the [from, to) range of the source text it came from, so the bold part of a result lands on the right letters.
   const ABBR = { sto: 'santo', sta: 'santa', gen: 'general', pres: 'president', sen: 'senator' };
-  const ABBR_AT = /(sto|sta|gen|pres|sen)(\.|(?![\p{L}\p{N}]))/iuy;
+  const ROMAN = { i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8', ix: '9', x: '10' };
   const WORD = /[\p{L}\p{N}]/u;
-  const IGNORED = /[-‐-—'‘’ʼ.]/;
+  const HYPHEN = /[-‐-—]/;
+  const DROPPED = /['‘’ʼ.]/;
+  const low = (ch) => (ch < '\x80' ? ch.toLowerCase() : ch.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase());
   function normalize(s, map, keepAbbr) {
     let f = '';
     const from = map ? [] : null;
@@ -150,36 +153,63 @@
       if (map) for (let k = 0; k < t.length; k++) { from.push(a); to.push(b); }
     };
     for (let i = 0; i < s.length;) {
-      if (i === 0 || !WORD.test(s[i - 1])) {  // an abbreviation only counts as a whole word
-        ABBR_AT.lastIndex = i;
-        const m = ABBR_AT.exec(s);
-        if (m && (!keepAbbr || m[2] === '.')) {
-          const end = i + m[0].length;
-          put(ABBR[m[1].toLowerCase()], i, end);
-          if (m[2] === '.' && end < s.length && WORD.test(s[end])) put(' ', end - 1, end);  // "Sta.Cruz" → "santa cruz"
-          i = end;
-          continue;
-        }
+      if (!WORD.test(s[i])) {
+        const ch = s[i++];
+        if (HYPHEN.test(ch)) put(' ', i - 1, i);              // "Dalig-Kalinga" = "Dalig Kalinga"
+        else if (!DROPPED.test(ch)) put(low(ch), i - 1, i);
+        continue;
       }
-      const ch = s[i++];
-      if (IGNORED.test(ch)) continue;
-      put(ch < '\x80' ? ch.toLowerCase() : ch.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(), i - 1, i);
+      let j = i + 1;
+      while (j < s.length && WORD.test(s[j])) j++;            // one whole word: s[i, j)
+      let w = '';
+      for (let k = i; k < j; k++) w += low(s[k]);
+      const dot = s[j] === '.';
+      const end = dot ? j + 1 : j;                            // a period right after the word goes with it
+      const glued = dot && end < s.length && WORD.test(s[end]);  // "Sta.Cruz", "J.V."
+      const whole = (t) => { put(t, i, end); if (glued) put(' ', j, end); i = end; };
+      if (ABBR[w] && (!keepAbbr || dot)) { whole(ABBR[w]); continue; }
+      if (w === 'pob') { whole('poblacion'); continue; }
+      if (ROMAN[w] && s[i - 1] !== '.' && !glued) { put(ROMAN[w], i, j); i = j; continue; }
+      for (let k = i; k < j; k++) put(low(s[k]), k, k + 1);
+      i = j;
     }
     return map ? { f, from, to } : f;
   }
   const norm = (s) => normalize(s, false, false);
 
+  // Words written joined or apart ("DaligKalinga" = "Dalig Kalinga"): compare with the spaces dropped, but only over whole
+  // words of the text — start at a word start, end at a word end — so "manila" does not hit "Kaman Ilaya". fs = f without
+  // spaces (a quick pre-check). Returns the [start, end) range in f, or null.
+  const isW = (c) => c !== undefined && /[a-z0-9]/.test(c);
+  function joinedAt(f, fs, q) {
+    const qs = q.replace(/ /g, '');
+    if (qs.length < 2 || fs.indexOf(qs) < 0) return null;
+    for (let i = 0; i < f.length; i++) {
+      if (!isW(f[i]) || isW(f[i - 1])) continue;
+      let j = i;
+      let k = 0;
+      while (j < f.length && k < qs.length) {
+        if (f[j] === ' ') { j++; continue; }
+        if (f[j] !== qs[k]) break;
+        j++; k++;
+      }
+      if (k === qs.length && !isW(f[j])) return [i, j];
+    }
+    return null;
+  }
+
   // search-index.json → entries with normalized names; each search alias (index field a) hangs on the entry it points to
   function buildIndex(si) {
+    const nf = (name) => { const f = norm(name); return { f, fs: f.replace(/ /g, '') }; };
     const M = si.m.map(([code, name]) => ({ code, name, f: norm(name) }));
     const R = si.r.map(([code, name, m]) => ({ code, name, m, f: norm(name) }));
-    const P = si.p.map(([code, name, r]) => ({ code, name, r, f: norm(name) }));
-    const C = si.c.map(([code, name, p, cls, partOf]) => ({ code, name, p, cls, partOf: partOf || null, r: null, f: norm(name), fa: partOf ? norm(partOf) : '' }));
+    const P = si.p.map(([code, name, r]) => ({ code, name, r, ...nf(name) }));
+    const C = si.c.map(([code, name, p, cls, partOf]) => ({ code, name, p, cls, partOf: partOf || null, r: null, ...nf(name), fa: partOf ? norm(partOf) : '' }));
     for (const [ci, ri] of si.cr) C[ci].r = ri;  // official region differs from the province's (only Isabela City)
-    const B = si.b.map(([c, n, name]) => ({ c, n, name, f: norm(name) }));
+    const B = si.b.map(([c, n, name]) => ({ c, n, name, ...nf(name) }));
     for (const [lvl, i, name] of si.a) {  // BP spellings and old names (mapping/search-aliases.csv)
       const e = [P, C, B][lvl][i];
-      (e.al || (e.al = [])).push({ name, f: norm(name) });
+      (e.al || (e.al = [])).push({ name, ...nf(name) });
     }
     return { M, R, P, C, B };
   }
@@ -205,17 +235,19 @@
     const ancP = (e) => { const r = IDX.R[e.r]; return [r.f, IDX.M[r.m].f]; };
     const ancC = (e) => { const p = IDX.P[e.p]; return [p.f].concat(e.r != null ? [IDX.R[e.r].f] : [], ancP(p)); };
     const ancB = (e) => { const c = IDX.C[e.c]; return [c.f, c.fa].concat(ancC(c)); };
-    // f = a name or an alias; extra = "Manila City" for Manila's districts. Several words: each word is found in f / extra
-    // or in a parent name, and at least one in f / extra.
-    const rank = (f, extra, { q, toks }, e, anc) => {
+    // f = a name or an alias (fs = the same without spaces); extra = "Manila City" for Manila's districts. Joined / split
+    // words count as the same ("DaligKalinga" = "Dalig Kalinga"). Several words: each word is found in f / extra or in a parent
+    // name, and at least one in f / extra.
+    const rank = (f, fs, extra, { q, toks }, e, anc) => {
       let r = rankIn(f, q);
+      if (r < 0) { const span = joinedAt(f, fs, q); if (span) r = span[0] === 0 ? 0 : 1; }
       if (r < 0 && extra) { const ra = rankIn(extra, q); if (ra >= 0) r = Math.max(ra, 1); }
       if (r < 0 && toks.length > 1) {
         let own = false;
         let all = true;
         let ancestors = null;
         for (const t of toks) {
-          if (f.includes(t) || (extra && extra.includes(t))) { own = true; continue; }
+          if (f.includes(t) || joinedAt(f, fs, t) || (extra && extra.includes(t))) { own = true; continue; }
           ancestors = ancestors || anc(e);
           if (!ancestors.some((a) => a && a.includes(t))) { all = false; break; }
         }
@@ -230,14 +262,14 @@
       let q = null;
       let alias = null;
       for (const read of reads) {
-        const r = rank(e.f, e.fa, read, e, anc);
+        const r = rank(e.f, e.fs, e.fa, read, e, anc);
         if (r >= 0 && (best < 0 || r < best)) { best = r; q = read.q; }
       }
       let bucket;
       if (best >= 0) bucket = best <= 1 ? lvl * 2 + best : best === 2 ? 6 + lvl : 9 + lvl;
       else if (e.al) {
         for (const a of e.al) for (const read of reads) {
-          const r = rank(a.f, '', read, e, anc);
+          const r = rank(a.f, a.fs, '', read, e, anc);
           if (r >= 0 && (best < 0 || r < best)) { best = r; alias = a.name; }
         }
         if (best < 0) return;
@@ -433,10 +465,15 @@
   // ("santo tomas" → "Sto. Tomas" in "Sto. Tomas City", "mlang" → "M'Lang")
   function highlight(name, q) {
     const { f, from, to } = normalize(name, true);
-    const i = f.indexOf(q);
-    if (i < 0) return esc(name);
+    let i = f.indexOf(q);
+    let j = i + q.length;
+    if (i < 0) {  // matched with the words joined / split ("daligkalinga" in "Dalig Kalinga")
+      const span = joinedAt(f, f.replace(/ /g, ''), q);
+      if (!span) return esc(name);
+      [i, j] = span;
+    }
     const a = from[i];
-    const b = to[i + q.length - 1];
+    const b = to[j - 1];
     return esc(name.slice(0, a)) + '<b>' + esc(name.slice(a, b)) + '</b>' + esc(name.slice(b));
   }
 

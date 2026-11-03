@@ -3,7 +3,7 @@
   "schemaVersion": "v1",
   "psgcVersion": "PSGC 3Q 2026",
   "publicationDate": "2026-09-30",
-  "generatedAt": "2026-11-03T03:44:22Z",
+  "generatedAt": "2026-11-03T04:18:22Z",
   "source": {
     "publisher": "Philippine Statistics Authority (PSA)",
     "title": "Philippine Standard Geographic Code (PSGC)",
@@ -53,10 +53,10 @@
       "barangay": 42010
     },
     "searchAliases": {
-      "total": 936,
+      "total": 950,
       "province": 3,
       "city": 15,
-      "barangay": 918
+      "barangay": 932
     }
   },
   "levels": [
@@ -83,14 +83,14 @@
   ],
   "searchAliases": {
     "file": "mapping/search-aliases.csv",
-    "sha256": "5e66e2beea8ba31d9bcf517ccc208b9859325514ec88ec90b3acfd5cebd59f26",
-    "total": 936,
+    "sha256": "029739dbb78150b17c4f7d389021271ed166ee9795ac71b98c0e89f7695e1a12",
+    "total": 950,
     "sources": {
-      "BP-2026-11-03": 936
+      "BP-2026-11-03": 950
     },
     "rules": {
-      "brgy-paren": 867,
-      "brgy-similar": 51,
+      "brgy-paren": 877,
+      "brgy-similar": 55,
       "city-rename": 5,
       "city-spelling": 10,
       "province-rename": 3
@@ -169,8 +169,8 @@
     },
     {
       "id": "search-aliases",
-      "title": "搜索别名 936 条（BP 写法与旧名）",
-      "detail": "mapping/search-aliases.csv（scripts/build_aliases.ts 生成）：省级 3、城市级 15、Barangay 级 918，来源 BP-2026-11-03。写进 search-index.json 的 a 字段，只参与搜索匹配、排在名字直接命中之后，不改显示名；构建时校验 code 存在、层级与名字一致、不与同一上级下 / 同省同级的真实地名撞名。"
+      "title": "搜索别名 950 条（BP 写法与旧名）",
+      "detail": "mapping/search-aliases.csv（scripts/build_aliases.ts 生成）：省级 3、城市级 15、Barangay 级 932，来源 BP-2026-11-03。写进 search-index.json 的 a 字段，只参与搜索匹配、排在名字直接命中之后，不改显示名；构建时校验 code 存在、层级与名字一致、不与同一上级下 / 同省同级的真实地名撞名。"
     }
   ]
 }
