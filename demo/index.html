@@ -129,8 +129,43 @@
   };
   const tabBtns = [...el.tabs.querySelectorAll('button')];
 
-  // Accent-insensitive (ñ = n) and case-insensitive
+  // Accent-insensitive (ñ = n) and case-insensitive; used to compare names (e.g. adjacent duplicates), not for search
   const fold = (s) => (/[^\x00-\x7f]/.test(s) ? s.normalize('NFD').replace(/[̀-ͯ]/g, '') : s).toLowerCase();
+  // Search normalization, applied the same way to the names in the index and to what the player types:
+  // case-insensitive, accents removed (ñ = n), Sto. / Sta. / Gen. / Pres. / Sen. read as Santo / Santa / General / President / Senator
+  // (with or without the period), hyphens, apostrophes and periods ignored. With map = true it also returns, for every output
+  // character, the [from, to) range of the source text it came from, so the bold part of a result lands on the right letters.
+  const ABBR = { sto: 'santo', sta: 'santa', gen: 'general', pres: 'president', sen: 'senator' };
+  const ABBR_AT = /(sto|sta|gen|pres|sen)(\.|(?![\p{L}\p{N}]))/iuy;
+  const WORD = /[\p{L}\p{N}]/u;
+  const IGNORED = /[-‐-—'‘’ʼ.]/;
+  function normalize(s, map) {
+    let f = '';
+    const from = map ? [] : null;
+    const to = map ? [] : null;
+    const put = (t, a, b) => {
+      f += t;
+      if (map) for (let k = 0; k < t.length; k++) { from.push(a); to.push(b); }
+    };
+    for (let i = 0; i < s.length;) {
+      if (i === 0 || !WORD.test(s[i - 1])) {  // an abbreviation only counts as a whole word
+        ABBR_AT.lastIndex = i;
+        const m = ABBR_AT.exec(s);
+        if (m) {
+          const end = i + m[0].length;
+          put(ABBR[m[1].toLowerCase()], i, end);
+          if (m[2] === '.' && end < s.length && WORD.test(s[end])) put(' ', end - 1, end);  // "Sta.Cruz" → "santa cruz"
+          i = end;
+          continue;
+        }
+      }
+      const ch = s[i++];
+      if (IGNORED.test(ch)) continue;
+      put(ch < '\x80' ? ch.toLowerCase() : ch.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(), i - 1, i);
+    }
+    return map ? { f, from, to } : f;
+  }
+  const norm = (s) => normalize(s, false);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   // Keep only one of adjacent duplicate names
   const dedupe = (parts) => parts.filter(Boolean).reduce((a, p) => {
@@ -184,9 +219,9 @@
     el.dev.innerHTML = '<h3>What we will save (for developers)</h3><table>'
       + row('Region', v.region.code, v.region.name)
       + row('Official region (for reporting)', v.officialRegion.code, v.officialRegion.name)
-      + row('provinceCode', v.province.code, v.province.name, v.province.synthetic ? 'synthetic' : '')
-      + row('cityCode', v.city.code, v.city.name, [v.city.cityClass, v.city.partOfName ? 'part of ' + v.city.partOfName : ''].filter(Boolean).join(', '))
-      + row('barangayCode', v.barangay.code, v.barangay.name)
+      + row('Province', v.province.code, v.province.name, v.province.synthetic ? 'synthetic' : '')
+      + row('City', v.city.code, v.city.name, [v.city.cityClass, v.city.partOfName ? 'part of ' + v.city.partOfName : ''].filter(Boolean).join(', '))
+      + row('Barangay', v.barangay.code, v.barangay.name)
       + '</table><div class="mail">Mailing address (small → large): ' + esc(mailing(v)) + '</div>';
   }
 
@@ -194,7 +229,7 @@
   function openSheet() {
     const v = state.value;
     if (v) {
-      state.draft = [{ ...v.region }, { ...v.province, regionCode: v.officialRegion.code, regionName: v.officialRegion.name, macroRegionCode: v.region.code }, { ...v.city }, { ...v.barangay }];
+      state.draft = [{ ...v.region }, { ...v.province }, { ...v.city }, { ...v.barangay }];
       state.step = 3;
     } else {
       state.draft = [null, null, null, null];
@@ -273,11 +308,13 @@
 
   function commit() {
     const [a, p, c, b] = state.draft;
+    const own = (x) => (x.regionCode ? { regionCode: x.regionCode, regionName: x.regionName } : {});
     state.value = {
-      region: { code: a.code, name: a.name },                     // the Region field: a BP zone, e.g. macro-south-luzon / South Luzon
-      officialRegion: { code: p.regionCode, name: p.regionName },  // from the province item; saved with the order for reporting
-      province: { code: p.code, name: p.name, synthetic: !!p.synthetic },
-      city: { code: c.code, name: c.name, cityClass: c.cityClass, partOfName: c.partOfName || null },
+      region: { code: a.code, name: a.name },  // the Region field: a BP zone, e.g. macro-south-luzon / South Luzon
+      // saved with the order for reporting: the city's own regionCode if it has one (only Isabela City), otherwise the province's
+      officialRegion: c.regionCode ? { code: c.regionCode, name: c.regionName } : { code: p.regionCode, name: p.regionName },
+      province: { code: p.code, name: p.name, synthetic: !!p.synthetic, ...own(p) },
+      city: { code: c.code, name: c.name, cityClass: c.cityClass, partOfName: c.partOfName || null, ...own(c) },
       barangay: { code: b.code, name: b.name },
     };
   }
@@ -289,12 +326,13 @@
     if (IDX) return Promise.resolve(IDX);
     if (!idxPromise) {
       idxPromise = load('search-index.json').then((si) => {
-        const M = si.m.map(([code, name]) => ({ code, name, f: fold(name) }));
-        const R = si.r.map(([code, name, m]) => ({ code, name, m, f: fold(name) }));
-        const P = si.p.map(([code, name, r]) => ({ code, name, r, f: fold(name) }));
-        const C = si.c.map(([code, name, p, cls, partOf]) => ({ code, name, p, cls, partOf: partOf || null, f: fold(name), fa: partOf ? fold(partOf) : '' }));
-        const B = si.b.map(([c, n, name]) => ({ c, n, name, f: fold(name) }));
-        IDX = { M, R, P, C, B, ps: si.ps };
+        const M = si.m.map(([code, name]) => ({ code, name, f: norm(name) }));
+        const R = si.r.map(([code, name, m]) => ({ code, name, m, f: norm(name) }));
+        const P = si.p.map(([code, name, r]) => ({ code, name, r, f: norm(name) }));
+        const C = si.c.map(([code, name, p, cls, partOf]) => ({ code, name, p, cls, partOf: partOf || null, r: null, f: norm(name), fa: partOf ? norm(partOf) : '' }));
+        for (const [ci, ri] of si.cr) C[ci].r = ri;  // official region differs from the province's (only Isabela City)
+        const B = si.b.map(([c, n, name]) => ({ c, n, name, f: norm(name) }));
+        IDX = { M, R, P, C, B };
         return IDX;
       }).catch((e) => { idxPromise = null; throw e; });
     }
@@ -311,7 +349,7 @@
   }
 
   const ancP = (e) => { const r = IDX.R[e.r]; return [r.f, IDX.M[r.m].f]; };
-  const ancC = (e) => { const p = IDX.P[e.p]; return [p.f].concat(ancP(p)); };
+  const ancC = (e) => { const p = IDX.P[e.p]; return [p.f].concat(e.r != null ? [IDX.R[e.r].f] : [], ancP(p)); };
   const ancB = (e) => { const c = IDX.C[e.c]; return [c.f, c.fa].concat(ancC(c)); };
 
   // Ranking: first "starts with / word-start" matches (Province → City → Barangay, prefix matches first within a level),
@@ -319,7 +357,7 @@
   const bucketOf = (r, lvl) => (r <= 1 ? lvl * 2 + r : r === 2 ? 6 + lvl : 9 + lvl);
 
   function search(raw) {
-    const q = fold(raw).replace(/\s+/g, ' ').trim();
+    const q = norm(raw).replace(/\s+/g, ' ').trim();
     const toks = q.split(/[\s,]+/).filter(Boolean);
     const buckets = Array.from({ length: 12 }, () => []);
     let total = 0;
@@ -342,7 +380,7 @@
       const b = buckets[bucketOf(r, lvl)];
       if (b.length < LIMIT) b.push({ lvl, e });
     };
-    for (let i = 0; i < IDX.ps; i++) consider(0, IDX.P[i], '', ancP);
+    for (const e of IDX.P) consider(0, e, '', ancP);
     for (const e of IDX.C) consider(1, e, e.fa, ancC);
     for (const e of IDX.B) consider(2, e, '', ancB);
     const items = [];
@@ -355,16 +393,21 @@
     if (lvl === 0) { prov = e; code = e.code; }
     if (lvl === 1) { city = e; prov = IDX.P[e.p]; code = e.code; tag = e.partOf; }
     if (lvl === 2) { city = IDX.C[e.c]; prov = IDX.P[city.p]; code = city.code.slice(0, 7) + String(e.n).padStart(3, '0'); }
-    const reg = IDX.R[prov.r];
-    const mac = IDX.M[reg.m];
-    return { lvl, code, name: e.name, tag, prov, city, reg, mac };
+    const reg = IDX.R[prov.r];                                      // the province's region (where it sits in the tree)
+    const mac = IDX.M[reg.m];                                       // level 1: the BP zone
+    const cityReg = city && city.r != null ? IDX.R[city.r] : null;  // Isabela City only: its official region differs from the province's
+    return { lvl, code, name: e.name, tag, prov, city, reg, cityReg, mac };
   }
 
+  // Bold the part of the name that matched, mapped back from the normalized text onto the original letters
+  // ("santo tomas" → "Sto. Tomas" in "Sto. Tomas City", "mlang" → "M'Lang")
   function highlight(name, q) {
-    const f = fold(name);
+    const { f, from, to } = normalize(name, true);
     const i = f.indexOf(q);
-    if (i < 0 || f.length !== name.length) return esc(name);
-    return esc(name.slice(0, i)) + '<b>' + esc(name.slice(i, i + q.length)) + '</b>' + esc(name.slice(i + q.length));
+    if (i < 0) return esc(name);
+    const a = from[i];
+    const b = to[i + q.length - 1];
+    return esc(name.slice(0, a)) + '<b>' + esc(name.slice(a, b)) + '</b>' + esc(name.slice(b));
   }
 
   let searchTimer = null;
@@ -401,8 +444,9 @@
 
   function pickResult(x) {
     const l1 = { code: x.mac.code, name: x.mac.name };
-    const prov = { code: x.prov.code, name: x.prov.name, regionCode: x.reg.code, regionName: x.reg.name, macroRegionCode: x.mac.code, synthetic: x.prov.code.startsWith('X') };
-    const city = x.city ? { code: x.city.code, name: x.city.name, cityClass: x.city.cls, partOfName: x.city.partOf } : null;
+    const prov = { code: x.prov.code, name: x.prov.name, regionCode: x.reg.code, regionName: x.reg.name, synthetic: x.prov.code.startsWith('X') };
+    const city = x.city ? { code: x.city.code, name: x.city.name, cityClass: x.city.cls, partOfName: x.city.partOf,
+      ...(x.cityReg ? { regionCode: x.cityReg.code, regionName: x.cityReg.name } : {}) } : null;
     if (x.lvl === 2) {  // barangay picked: all four levels are filled at once and the drawer closes
       state.draft = [l1, prov, city, { code: x.code, name: x.name }];
       commit(); closeSheet(); renderField(); return;
@@ -443,7 +487,7 @@
   el.q.addEventListener('input', () => {
     clearTimeout(searchTimer);
     const v = el.q.value;
-    if (fold(v).replace(/\s+/g, ' ').trim().length < 2) {
+    if (norm(v).replace(/\s+/g, ' ').trim().length < 2) {
       searchToken++;
       showResults(false);
       return;

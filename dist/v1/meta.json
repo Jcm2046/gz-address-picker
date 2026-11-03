@@ -3,7 +3,7 @@
   "schemaVersion": "v1",
   "psgcVersion": "PSGC 3Q 2026",
   "publicationDate": "2026-09-30",
-  "generatedAt": "2026-10-30T08:54:52Z",
+  "generatedAt": "2026-11-03T02:24:30Z",
   "source": {
     "publisher": "Philippine Statistics Authority (PSA)",
     "title": "Philippine Standard Geographic Code (PSGC)",
@@ -27,7 +27,7 @@
   "counts": {
     "tree": {
       "region": 18,
-      "province": 85,
+      "province": 84,
       "city": 1655,
       "barangay": 42010,
       "macroRegion": 5
@@ -46,7 +46,7 @@
         "ICC": 5
       }
     },
-    "childrenFiles": 1763,
+    "childrenFiles": 1762,
     "searchIndex": {
       "province": 84,
       "city": 1655,
@@ -98,8 +98,8 @@
     },
     {
       "id": "isabela-city",
-      "title": "Isabela City：Region IX 下单独的省级节点",
-      "detail": "City of Isabela 地理上在 Basilan（BARMM），行政上属 Region IX（官方 Notes A.2），与地理省不在同一大区，不硬挂。官方给了特殊省级编码 0990100000「City of Isabela (Not a Province)」，直接用这个真实编码作省级节点，显示名「Isabela City」，下面挂这座市本身 (0990101000, CC)。"
+      "title": "Isabela City 按地理挂到 Basilan（官方大区仍为 Region IX）",
+      "detail": "City of Isabela (0990101000, CC) 地理上在 Basilan（BARMM），行政上属 Region IX（官方 Notes A.2）。与 BP 及 17 个独立市做法一致，按地理挂到 Basilan (1900700000) 下（geoAttached=true）；Region IX 与 BARMM 同属 BP 的 Mindanao，第一级不受影响。官方大区不变：该市的 children 项带 regionCode=0900000000、regionName=Zamboanga Peninsula，flat 里该市及其 45 个 Barangay 的 regionCode 都是 Region IX，按官方大区统计时仍算在 Region IX。官方特殊省级编码 0990100000「City of Isabela (Not a Province)」不再作节点。依据：Basilan 省份行注释「(excluding CITY OF ISABELA)」+ Notes A.2。"
     },
     {
       "id": "special-geographic-area",
@@ -145,11 +145,6 @@
       "id": "skipped-rows",
       "title": "跳过的非数据行",
       "detail": "PSGC 表末尾的空行和 Lucena 脚注说明行不是地区，跳过。"
-    },
-    {
-      "id": "search-index-exclusions",
-      "title": "搜索索引里省略的省级节点",
-      "detail": "省级节点只有一个同名下级时（Isabela City），搜索只保留下级市，避免出现两条一样的结果；路径表里仍保留该省级节点。"
     }
   ]
 }
