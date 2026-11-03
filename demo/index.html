@@ -131,15 +131,17 @@
 
   // Accent-insensitive (ñ = n) and case-insensitive; used to compare names (e.g. adjacent duplicates), not for search
   const fold = (s) => (/[^\x00-\x7f]/.test(s) ? s.normalize('NFD').replace(/[̀-ͯ]/g, '') : s).toLowerCase();
-  // Search normalization, applied the same way to the names in the index and to what the player types:
-  // case-insensitive, accents removed (ñ = n), Sto. / Sta. / Gen. / Pres. / Sen. read as Santo / Santa / General / President / Senator
-  // (with or without the period), hyphens, apostrophes and periods ignored. With map = true it also returns, for every output
-  // character, the [from, to) range of the source text it came from, so the bold part of a result lands on the right letters.
+  // ===== Search core (begin): pure functions, no page state. scripts/build_aliases.ts runs this same block to tell which spellings are already findable =====
+  // Normalization, applied the same way to the names in the index and to what the player types: case-insensitive, accents
+  // removed (ñ = n), Sto. / Sta. / Gen. / Pres. / Sen. read as Santo / Santa / General / President / Senator (with or without the
+  // period), hyphens, apostrophes and periods ignored. keepAbbr = true leaves those five words as typed when they have no period
+  // (the query is read both ways, so "sta" also finds Buenavista). With map = true it also returns, for every output character,
+  // the [from, to) range of the source text it came from, so the bold part of a result lands on the right letters.
   const ABBR = { sto: 'santo', sta: 'santa', gen: 'general', pres: 'president', sen: 'senator' };
   const ABBR_AT = /(sto|sta|gen|pres|sen)(\.|(?![\p{L}\p{N}]))/iuy;
   const WORD = /[\p{L}\p{N}]/u;
   const IGNORED = /[-‐-—'‘’ʼ.]/;
-  function normalize(s, map) {
+  function normalize(s, map, keepAbbr) {
     let f = '';
     const from = map ? [] : null;
     const to = map ? [] : null;
@@ -151,7 +153,7 @@
       if (i === 0 || !WORD.test(s[i - 1])) {  // an abbreviation only counts as a whole word
         ABBR_AT.lastIndex = i;
         const m = ABBR_AT.exec(s);
-        if (m) {
+        if (m && (!keepAbbr || m[2] === '.')) {
           const end = i + m[0].length;
           put(ABBR[m[1].toLowerCase()], i, end);
           if (m[2] === '.' && end < s.length && WORD.test(s[end])) put(' ', end - 1, end);  // "Sta.Cruz" → "santa cruz"
@@ -165,7 +167,93 @@
     }
     return map ? { f, from, to } : f;
   }
-  const norm = (s) => normalize(s, false);
+  const norm = (s) => normalize(s, false, false);
+
+  // search-index.json → entries with normalized names; each search alias (index field a) hangs on the entry it points to
+  function buildIndex(si) {
+    const M = si.m.map(([code, name]) => ({ code, name, f: norm(name) }));
+    const R = si.r.map(([code, name, m]) => ({ code, name, m, f: norm(name) }));
+    const P = si.p.map(([code, name, r]) => ({ code, name, r, f: norm(name) }));
+    const C = si.c.map(([code, name, p, cls, partOf]) => ({ code, name, p, cls, partOf: partOf || null, r: null, f: norm(name), fa: partOf ? norm(partOf) : '' }));
+    for (const [ci, ri] of si.cr) C[ci].r = ri;  // official region differs from the province's (only Isabela City)
+    const B = si.b.map(([c, n, name]) => ({ c, n, name, f: norm(name) }));
+    for (const [lvl, i, name] of si.a) {  // BP spellings and old names (mapping/search-aliases.csv)
+      const e = [P, C, B][lvl][i];
+      (e.al || (e.al = [])).push({ name, f: norm(name) });
+    }
+    return { M, R, P, C, B };
+  }
+
+  // 0 = the text starts with the keyword; 1 = a word in it starts with it; 2 = it contains it; -1 = no match
+  function rankIn(f, q) {
+    let i = f.indexOf(q);
+    if (i < 0) return -1;
+    if (i === 0) return 0;
+    for (; i >= 0; i = f.indexOf(q, i + 1)) if (!/[a-z0-9]/.test(f[i - 1])) return 1;
+    return 2;
+  }
+
+  // Ranking: name hits first — "starts with / word-start" (Province → City → Barangay, prefix before word-start), then
+  // "contained in the middle", then "several words, some found in the parent names"; after all name hits come alias hits in the
+  // same three tiers. Within a tier the index's A–Z order is kept. Returns up to `limit` items and the total number of matches.
+  function search(IDX, raw, limit) {
+    const reads = [];  // the query with sto / sta / gen / pres / sen expanded, and (if different) as typed
+    for (const keepAbbr of [false, true]) {
+      const q = normalize(raw, false, keepAbbr).replace(/\s+/g, ' ').trim();
+      if (q && !reads.some((x) => x.q === q)) reads.push({ q, toks: q.split(/[\s,]+/).filter(Boolean) });
+    }
+    const ancP = (e) => { const r = IDX.R[e.r]; return [r.f, IDX.M[r.m].f]; };
+    const ancC = (e) => { const p = IDX.P[e.p]; return [p.f].concat(e.r != null ? [IDX.R[e.r].f] : [], ancP(p)); };
+    const ancB = (e) => { const c = IDX.C[e.c]; return [c.f, c.fa].concat(ancC(c)); };
+    // f = a name or an alias; extra = "Manila City" for Manila's districts. Several words: each word is found in f / extra
+    // or in a parent name, and at least one in f / extra.
+    const rank = (f, extra, { q, toks }, e, anc) => {
+      let r = rankIn(f, q);
+      if (r < 0 && extra) { const ra = rankIn(extra, q); if (ra >= 0) r = Math.max(ra, 1); }
+      if (r < 0 && toks.length > 1) {
+        let own = false;
+        let all = true;
+        let ancestors = null;
+        for (const t of toks) {
+          if (f.includes(t) || (extra && extra.includes(t))) { own = true; continue; }
+          ancestors = ancestors || anc(e);
+          if (!ancestors.some((a) => a && a.includes(t))) { all = false; break; }
+        }
+        if (own && all) r = 3;
+      }
+      return r;
+    };
+    const buckets = Array.from({ length: 21 }, () => []);
+    let total = 0;
+    const consider = (lvl, e, anc) => {
+      let best = -1;
+      let q = null;
+      let alias = null;
+      for (const read of reads) {
+        const r = rank(e.f, e.fa, read, e, anc);
+        if (r >= 0 && (best < 0 || r < best)) { best = r; q = read.q; }
+      }
+      let bucket;
+      if (best >= 0) bucket = best <= 1 ? lvl * 2 + best : best === 2 ? 6 + lvl : 9 + lvl;
+      else if (e.al) {
+        for (const a of e.al) for (const read of reads) {
+          const r = rank(a.f, '', read, e, anc);
+          if (r >= 0 && (best < 0 || r < best)) { best = r; alias = a.name; }
+        }
+        if (best < 0) return;
+        bucket = 12 + (best <= 1 ? 0 : best === 2 ? 3 : 6) + lvl;  // alias hits come after every name hit
+      } else return;
+      total++;
+      if (buckets[bucket].length < limit) buckets[bucket].push({ lvl, e, q, alias });
+    };
+    for (const e of IDX.P) consider(0, e, ancP);
+    for (const e of IDX.C) consider(1, e, ancC);
+    for (const e of IDX.B) consider(2, e, ancB);
+    const items = [];
+    for (const b of buckets) for (const x of b) if (items.length < limit) items.push(x);
+    return { items, total };
+  }
+  // ===== Search core (end) =====
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   // Keep only one of adjacent duplicate names
   const dedupe = (parts) => parts.filter(Boolean).reduce((a, p) => {
@@ -325,70 +413,12 @@
   function loadIndex() {
     if (IDX) return Promise.resolve(IDX);
     if (!idxPromise) {
-      idxPromise = load('search-index.json').then((si) => {
-        const M = si.m.map(([code, name]) => ({ code, name, f: norm(name) }));
-        const R = si.r.map(([code, name, m]) => ({ code, name, m, f: norm(name) }));
-        const P = si.p.map(([code, name, r]) => ({ code, name, r, f: norm(name) }));
-        const C = si.c.map(([code, name, p, cls, partOf]) => ({ code, name, p, cls, partOf: partOf || null, r: null, f: norm(name), fa: partOf ? norm(partOf) : '' }));
-        for (const [ci, ri] of si.cr) C[ci].r = ri;  // official region differs from the province's (only Isabela City)
-        const B = si.b.map(([c, n, name]) => ({ c, n, name, f: norm(name) }));
-        IDX = { M, R, P, C, B };
-        return IDX;
-      }).catch((e) => { idxPromise = null; throw e; });
+      idxPromise = load('search-index.json').then((si) => { IDX = buildIndex(si); return IDX; }).catch((e) => { idxPromise = null; throw e; });
     }
     return idxPromise;
   }
 
-  // 0 = name starts with the keyword; 1 = a word in the name starts with it; 2 = the name contains it; -1 = no match
-  function rankIn(f, q) {
-    let i = f.indexOf(q);
-    if (i < 0) return -1;
-    if (i === 0) return 0;
-    for (; i >= 0; i = f.indexOf(q, i + 1)) if (!/[a-z0-9]/.test(f[i - 1])) return 1;
-    return 2;
-  }
-
-  const ancP = (e) => { const r = IDX.R[e.r]; return [r.f, IDX.M[r.m].f]; };
-  const ancC = (e) => { const p = IDX.P[e.p]; return [p.f].concat(e.r != null ? [IDX.R[e.r].f] : [], ancP(p)); };
-  const ancB = (e) => { const c = IDX.C[e.c]; return [c.f, c.fa].concat(ancC(c)); };
-
-  // Ranking: first "starts with / word-start" matches (Province → City → Barangay, prefix matches first within a level),
-  // then "contained in the middle of the name", finally "multi-word matches via parent names"; within a bucket the index's A–Z order is kept
-  const bucketOf = (r, lvl) => (r <= 1 ? lvl * 2 + r : r === 2 ? 6 + lvl : 9 + lvl);
-
-  function search(raw) {
-    const q = norm(raw).replace(/\s+/g, ' ').trim();
-    const toks = q.split(/[\s,]+/).filter(Boolean);
-    const buckets = Array.from({ length: 12 }, () => []);
-    let total = 0;
-    const consider = (lvl, e, alias, anc) => {
-      let r = rankIn(e.f, q);
-      if (r < 0 && alias) { const ra = rankIn(alias, q); if (ra >= 0) r = Math.max(ra, 1); }
-      if (r < 0 && toks.length > 1) {  // multiple words: each word matches the item itself or a parent name, and at least one word matches the item itself
-        let own = false;
-        let all = true;
-        let ancestors = null;
-        for (const t of toks) {
-          if (e.f.includes(t) || (alias && alias.includes(t))) { own = true; continue; }
-          ancestors = ancestors || anc(e);
-          if (!ancestors.some((a) => a && a.includes(t))) { all = false; break; }
-        }
-        if (own && all) r = 3;
-      }
-      if (r < 0) return;
-      total++;
-      const b = buckets[bucketOf(r, lvl)];
-      if (b.length < LIMIT) b.push({ lvl, e });
-    };
-    for (const e of IDX.P) consider(0, e, '', ancP);
-    for (const e of IDX.C) consider(1, e, e.fa, ancC);
-    for (const e of IDX.B) consider(2, e, '', ancB);
-    const items = [];
-    for (const b of buckets) for (const x of b) if (items.length < LIMIT) items.push(x);
-    return { items, total, q };
-  }
-
-  function resolve({ lvl, e }) {
+  function resolve({ lvl, e, q, alias }) {
     let prov = null; let city = null; let code; let tag = null;
     if (lvl === 0) { prov = e; code = e.code; }
     if (lvl === 1) { city = e; prov = IDX.P[e.p]; code = e.code; tag = e.partOf; }
@@ -396,7 +426,7 @@
     const reg = IDX.R[prov.r];                                      // the province's region (where it sits in the tree)
     const mac = IDX.M[reg.m];                                       // level 1: the BP zone
     const cityReg = city && city.r != null ? IDX.R[city.r] : null;  // Isabela City only: its official region differs from the province's
-    return { lvl, code, name: e.name, tag, prov, city, reg, cityReg, mac };
+    return { lvl, code, name: e.name, tag, prov, city, reg, cityReg, mac, q, alias };
   }
 
   // Bold the part of the name that matched, mapped back from the normalized text onto the original letters
@@ -423,7 +453,7 @@
     if (!IDX) el.results.innerHTML = '<li class="state loading">Loading…</li>';
     loadIndex().then(() => {
       if (token !== searchToken) return;
-      const { items, total, q } = search(raw);
+      const { items, total } = search(IDX, raw, LIMIT);
       el.results._items = items.map(resolve);
       el.results.dataset.count = String(items.length);
       el.results.dataset.total = String(total);
@@ -433,7 +463,8 @@
         if (anc.length > 1 && fold(anc[anc.length - 1]) === fold(x.name)) anc.pop();
         const tag = x.tag ? `<span class="tag">${esc(x.tag)}</span>` : '';
         return `<li><button type="button" class="row" data-i="${i}" data-code="${esc(x.code)}" data-lvl="${RESULT_LEVELS[x.lvl]}">`
-          + `<span class="main"><span class="nm">${highlight(x.name, q)}</span><span class="sub">${RESULT_LEVELS[x.lvl]} · ${esc(anc.join(', '))}</span></span>${tag}</button></li>`;
+          + `<span class="main"><span class="nm">${x.q ? highlight(x.name, x.q) : esc(x.name)}</span>`
+          + `<span class="sub">${RESULT_LEVELS[x.lvl]} · ${esc(anc.join(', '))}${x.alias ? ' · also: ' + esc(x.alias) : ''}</span></span>${tag}</button></li>`;
       }).join('') + (total > items.length ? `<li class="more">Showing first ${items.length} of ${total} results. Type more to narrow down.</li>` : '');
       el.body.scrollTop = 0;
     }).catch(() => {
