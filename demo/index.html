@@ -82,9 +82,10 @@
   .search input { width: 100%; height: 38px; border: 0; border-radius: 19px; padding: 0 14px 0 36px; font: inherit; font-size: 14px; outline: none;
     background: #f2f3f5 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238f959e' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-4-4'/%3E%3C/svg%3E") no-repeat 13px center; }
   .search input:focus { box-shadow: 0 0 0 2px var(--accent-bg) inset; }
-  .tabs { display: flex; border-bottom: 1px solid var(--line); padding: 0 8px; flex: none; }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); padding: 0 8px; flex: none; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .tabs::-webkit-scrollbar { display: none; }
   .tabs[hidden] { display: none; }
-  .tabs button { flex: 1 1 0; min-width: 0; padding: 10px 6px; text-align: center; font-size: 14px; color: #4e5969; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+  .tabs button { flex: 1 0 auto; padding: 10px 10px; text-align: center; font-size: 14px; color: #4e5969; white-space: nowrap; position: relative; }
   .tabs button.filled { color: var(--text); }
   .tabs button.active { color: var(--accent); font-weight: 600; }
   .tabs button.active::after { content: ""; position: absolute; left: 25%; right: 25%; bottom: 0; height: 2px; border-radius: 2px; background: var(--accent); }
@@ -97,7 +98,7 @@
   .row .nm { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row .nm b { color: var(--accent); font-weight: 600; }
   .row .sub { display: block; font-size: 12px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
-  .row .tag { flex: none; font-size: 11px; color: #646a73; background: #f2f3f5; border-radius: 4px; padding: 1px 6px; }
+  .row .tag { flex: none; font-size: 12px; color: var(--sub); }
   .row .ck { flex: none; width: 18px; color: var(--accent); font-weight: 700; visibility: hidden; text-align: right; }
   .row.sel { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
   .row.sel .ck { visibility: visible; }
@@ -580,6 +581,13 @@
       b.classList.toggle('filled', !!it);
       b.setAttribute('aria-selected', i === state.step ? 'true' : 'false');
     });
+    scrollTabs();
+  }
+  // Full names are shown, so the tabs can be wider than the sheet: keep the current level in view
+  function scrollTabs() {
+    if (el.tabs.hidden || !el.tabs.clientWidth) return;
+    const r = tabBtns[state.step].getBoundingClientRect(), p = el.tabs.getBoundingClientRect();
+    el.tabs.scrollLeft += r.left - p.left - (p.width - r.width) / 2;
   }
 
   let listToken = 0;
@@ -681,6 +689,7 @@
     el.results.hidden = !on;
     el.list.hidden = on;
     el.tabs.hidden = on;  // the tabs are hidden while searching
+    if (!on) scrollTabs();
   }
   function runSearch(raw) {
     const token = ++searchToken;
