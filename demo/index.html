@@ -54,7 +54,7 @@
     background: rgba(245, 246, 248, .94); box-shadow: 0 -1px 0 #e5e6eb; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
   .btn { display: block; width: 100%; height: 46px; border-radius: 23px; text-align: center; font-size: 16px; font-weight: 600; }
   .btn.primary { background: var(--accent); color: #fff; }
-  .btn.primary:disabled { background: #c9cdd4; color: #fff; cursor: not-allowed; }
+  .btn.primary.off { background: #c9cdd4; color: #fff; }
   .btn.ghost { background: var(--card); color: var(--text); border: 1px solid #dfe2e6; }
   /* label above value: Confirm Your Address and the order's Address card */
   .kv { padding: 9px 0; border-bottom: 1px solid var(--line); }
@@ -168,7 +168,7 @@
   <section class="dev" id="dev"></section>
   <p class="hint">How it works: each level loads <code>../dist/v1/children/{parentCode}.json</code> only when needed; search loads <code>search-index.json</code> the first time you search. Closing the picker halfway keeps your previous selection; changing a level clears the levels below it.</p>
   <!-- Save stays at the bottom of the screen (sticky), like Save in the product's Edit Your Address -->
-  <div class="savebar" id="saveBar"><button type="submit" form="edit" class="btn primary" id="save" disabled>Save</button></div>
+  <div class="savebar" id="saveBar"><button type="submit" form="edit" class="btn primary off" id="save">Save</button></div>
 </div>
 
 <div class="sheet" id="sheet" hidden>
@@ -460,10 +460,10 @@
     if (input[k]) input[k].setAttribute('aria-invalid', msg ? 'true' : 'false');
   }
   const showsError = (k) => fieldBox(k).classList.contains('invalid');
-  // Save lights up once the 5 required fields have a value; formats are checked when Save is tapped
+  // Save lights up once the 5 required fields have a value. It stays tappable while grey; a tap checks every field
   const ready = (f) => !!(f.name && !phoneEmpty(f.phone) && state.value && f.street && f.unit);
   function refresh() {
-    el.save.disabled = !ready(values());
+    el.save.classList.toggle('off', !ready(values()));
     renderDev();
   }
   // Keep digits only, at most max of them, and keep the caret where it was
@@ -793,11 +793,14 @@
     setTimeout(() => { if (document.activeElement === input.phone) input.phone.setSelectionRange(2, 2); });  // caret after 09
     refresh();
   });
+  // Enter in a field does nothing until Save has lit up (a tap on the grey Save still checks everything)
+  el.form.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && ev.target.matches('input') && !ready(values())) ev.preventDefault();
+  });
   // Save: check every field again, show all errors at once and scroll to the first one; all good → Confirm Your Address
   el.form.addEventListener('submit', (ev) => {
     ev.preventDefault();
     const f = values();
-    if (!ready(f)) return;  // Save is greyed out until then (this also stops Enter in a field)
     const bad = FIELDS.filter((k) => { const msg = problem(k, f); setError(k, msg); return !!msg; });
     if (bad.length) { fieldBox(bad[0]).scrollIntoView({ block: 'center' }); return; }
     openConfirm(f);
